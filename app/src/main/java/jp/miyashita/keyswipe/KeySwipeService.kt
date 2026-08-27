@@ -86,6 +86,7 @@ class KeySwipeService : AccessibilityService() {
         // 追跡中のカードが画面外へ出ないよう1列ぶんだけ送る
         private const val OVERVIEW_PAGE_SCROLL_RATIO = 0.38f
         private const val OVERVIEW_RESCAN_DELAY_MS = 400L  // ページ送り後の再検出待ち
+        private const val OVERVIEW_INITIAL_HIGHLIGHT_DELAY_MS = 450L // 一覧が開くのを待って初期枠表示
         private const val OVERVIEW_SCROLL_MS = 220L    // カード1枚ぶんの送りドラッグ時間
         private const val OVERVIEW_SCROLL_RATIO = 0.42f // 送りドラッグの距離(画面幅比)
     }
@@ -521,6 +522,10 @@ class KeySwipeService : AccessibilityService() {
         overviewCards = emptyList()
         overviewIndex = 0
         performGlobalAction(GLOBAL_ACTION_RECENTS)
+        // 一覧が開いたら、矢印を待たずに現在のカード(先頭)へ青枠を出す
+        mainHandler.postDelayed({
+            if (overviewMode) moveOverviewSelection(0)
+        }, OVERVIEW_INITIAL_HIGHLIGHT_DELAY_MS)
     }
 
     /** 選択カーソルを移動する。カード未検出なら検出し、まだ描画途中なら待って再試行。 */
