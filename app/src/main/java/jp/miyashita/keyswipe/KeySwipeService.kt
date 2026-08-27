@@ -64,8 +64,10 @@ class KeySwipeService : AccessibilityService() {
         private const val EDGE_MARGIN_RATIO = 0.12f     // 端ジェスチャー誤爆回避の安全マージン
         // true: ボールを下に転がすとページが下へ進む（コンテンツは上へ動く）
         private const val NATURAL_SCROLL = true
-        // オーバーレイ除去がシステムに反映されるのを待つ時間
-        private const val OVERLAY_SETTLE_DELAY_MS = 250L
+        // オーバーレイ除去がシステムに反映されるのを待つ時間。
+        // 旧スワイプ注入方式では250ms必要だったが、現在のグローバルアクション/
+        // 一覧選択方式では短くて足りる（長いと Ctrl+↑/↓ の反応が遅く感じる）
+        private const val OVERLAY_SETTLE_DELAY_MS = 50L
         // 修飾キー押下からスクロールモード突入までのデバウンス。
         // Ctrl+矢印の同時押しでオーバーレイを一瞬でも出さないための猶予。
         private const val SCROLL_MODE_ENTER_DELAY_MS = 250L
