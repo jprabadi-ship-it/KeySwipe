@@ -11,6 +11,16 @@ object Prefs {
     private fun prefs(context: Context): SharedPreferences =
         context.getSharedPreferences(NAME, Context.MODE_PRIVATE)
 
+    // アプリ全体の有効/無効（OFFなら全キーを素通しする）
+    private const val KEY_MASTER_ENABLED = "master_enabled"
+
+    fun isMasterEnabled(context: Context): Boolean =
+        prefs(context).getBoolean(KEY_MASTER_ENABLED, true)
+
+    fun setMasterEnabled(context: Context, enabled: Boolean) {
+        prefs(context).edit().putBoolean(KEY_MASTER_ENABLED, enabled).apply()
+    }
+
     /** Ctrl+↑/↓（Recents / アプリドロワー）を横取りするか。既定は有効。 */
     fun isUpDownEnabled(context: Context): Boolean =
         prefs(context).getBoolean(KEY_UPDOWN_ENABLED, true)

@@ -218,6 +218,9 @@ class KeySwipeService : AccessibilityService() {
         // 注意: ここは全キー入力が通る経路。素通りさせるキーの処理は最短に保つ
         // （ログ出力も連打時のオーバーヘッドになるため、通常キーでは行わない）
 
+        // マスタースイッチOFF: 一切横取りしない
+        if (!Prefs.isMasterEnabled(this)) return false
+
         // アプリ一覧の選択中は Enter で確定（消費してアプリには流さない）
         if (overviewMode &&
             (event.keyCode == KeyEvent.KEYCODE_ENTER ||
@@ -720,8 +723,8 @@ class KeySwipeService : AccessibilityService() {
         var target: Rect? = null
         private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.STROKE
-            strokeWidth = 12f
-            color = 0xFF4FC3F7.toInt()
+            strokeWidth = 14f
+            color = 0xFF2979FF.toInt()   // はっきりした青 (Blue A400)
         }
 
         override fun onDraw(canvas: Canvas) {

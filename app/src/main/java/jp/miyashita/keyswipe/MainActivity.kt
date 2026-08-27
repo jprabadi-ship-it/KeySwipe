@@ -23,6 +23,14 @@ class MainActivity : AppCompatActivity() {
 
         statusText = findViewById(R.id.status_text)
 
+        // マスタースイッチ（OFFで全キー素通し）
+        findViewById<MaterialSwitch>(R.id.master_switch).apply {
+            isChecked = Prefs.isMasterEnabled(this@MainActivity)
+            setOnCheckedChangeListener { _, checked ->
+                Prefs.setMasterEnabled(this@MainActivity, checked)
+            }
+        }
+
         // Ctrl+↑/↓ の有効/無効
         findViewById<MaterialSwitch>(R.id.updown_switch).apply {
             isChecked = Prefs.isUpDownEnabled(this@MainActivity)
