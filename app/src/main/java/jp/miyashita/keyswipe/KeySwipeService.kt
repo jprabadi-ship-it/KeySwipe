@@ -87,6 +87,9 @@ class KeySwipeService : AccessibilityService() {
         private const val OVERVIEW_PAGE_SCROLL_RATIO = 0.38f
         private const val OVERVIEW_RESCAN_DELAY_MS = 400L  // ページ送り後の再検出待ち
         private const val OVERVIEW_INITIAL_HIGHLIGHT_DELAY_MS = 450L // 一覧が開くのを待って初期枠表示
+        // 一覧を開いた直後は、元アプリ等のウィンドウイベントが飛び交うため
+        // この間は「一覧が閉じた」判定をしない
+        private const val OVERVIEW_OPEN_GRACE_MS = 800L
         private const val OVERVIEW_SCROLL_MS = 220L    // カード1枚ぶんの送りドラッグ時間
         private const val OVERVIEW_SCROLL_RATIO = 0.42f // 送りドラッグの距離(画面幅比)
     }
@@ -208,7 +211,8 @@ class KeySwipeService : AccessibilityService() {
         // （手動でカードをタップした・ホームに戻った・コミット完了した等）。
         // IME・システムUI・自分自身のウィンドウイベントはアプリ切り替えではない。
         if (overviewMode && pkg != LAUNCHER_PACKAGE && pkg != packageName &&
-            pkg != imePackage && pkg != "com.android.systemui"
+            pkg != imePackage && pkg != "com.android.systemui" &&
+            android.os.SystemClock.uptimeMillis() - overviewOpenedAt > OVERVIEW_OPEN_GRACE_MS
         ) {
             Log.d(TAG, "overviewMode cleared by window change: $pkg")
             overviewMode = false
@@ -513,10 +517,20 @@ class KeySwipeService : AccessibilityService() {
      * 遷移する。カードは画面内容から検出するため、グリッド表示（Fold内側）でも
      * カルーセル表示（外側）でも動く。
      */
+    // 一覧を開いた時刻（開いた直後のウィンドウイベント無視に使う）
+    private var overviewOpenedAt = 0L
+
     /** Ctrl+↑: アプリ一覧を開いて選択モードに入る。以後 Ctrl+←/→ で選択、Enter で確定。 */
     private fun openOverviewSelection() {
-        if (overviewMode) return
+        if (overviewMode) {
+            // 状態がずれて「開いているつもり」の可能性がある。カードが実在するなら
+            // 本当に開いているので何もしない。無ければ捨てて開き直す（自動リカバリ）。
+            refreshOverviewCards()
+            if (overviewCards.isNotEmpty()) return
+            Log.d(TAG, "openOverviewSelection: stale state, reopening")
+        }
         Log.d(TAG, "openOverviewSelection")
+        overviewOpenedAt = android.os.SystemClock.uptimeMillis()
         overviewMode = true
         overviewScrolled = false
         overviewCards = emptyList()
@@ -729,7 +743,8 @@ class KeySwipeService : AccessibilityService() {
         // 矢印で動かしていなくても Enter が来たら現在の選択（先頭=元のアプリ）を確定する
         if (overviewCards.isEmpty()) refreshOverviewCards()
         val card = overviewCards.getOrNull(overviewIndex) ?: return
-        Log.d(TAG, "commitOverviewSelection: click index=$overviewIndex ${card.bounds.toShortString()}")
+        Log.d(TAG, "commitOverviewSelection: click index=$overviewIndex " +
+                "app=${cardKey(card)} ${card.bounds.toShortString()}")
         card.node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
         overviewCards = emptyList()
     }
