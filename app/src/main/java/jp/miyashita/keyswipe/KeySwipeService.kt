@@ -105,10 +105,16 @@ class KeySwipeService : AccessibilityService() {
     private var strokeX = 0f
     private var strokeY = 0f
 
+    // 修飾キー押下中にショートカット操作をしたら、離すまでスクロールモード突入を抑止する。
+    // Ctrl+↓連打などの最中にフォーカスを奪うオーバーレイが割り込むと引っかかるため。
+    private var scrollSuppressedUntilRelease = false
+
     // デバウンス付きのスクロールモード突入
     private val enterScrollRunnable = Runnable {
-        // アプリ一覧の選択モード中はフォーカスを奪うオーバーレイを出さない
-        if (modifierDown && captureView == null && !overviewMode) enterScrollMode()
+        // アプリ一覧の選択モード中・ショートカット操作後はオーバーレイを出さない
+        if (modifierDown && captureView == null && !overviewMode &&
+            !scrollSuppressedUntilRelease
+        ) enterScrollMode()
     }
 
     private fun scheduleEnterScrollMode(delayMs: Long) {
@@ -233,6 +239,7 @@ class KeySwipeService : AccessibilityService() {
                 } else {
                     cancelPendingEnterScrollMode()
                     exitScrollMode()
+                    scrollSuppressedUntilRelease = false
                 }
             }
             // Ctrl を修飾キーにした場合も Ctrl+矢印の判定は下へ続行させる
@@ -277,6 +284,8 @@ class KeySwipeService : AccessibilityService() {
      * Recents などのシステム遷移が阻害されるため（実測）。
      */
     private fun suspendScrollModeAnd(run: (wasScrollMode: Boolean) -> Unit) {
+        // ショートカット操作をした修飾キー押下中は、以後スクロールモードに入らない
+        scrollSuppressedUntilRelease = true
         cancelPendingEnterScrollMode()
         if (captureView != null) {
             exitScrollMode()
