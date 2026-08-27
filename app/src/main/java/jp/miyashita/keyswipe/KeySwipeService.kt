@@ -191,12 +191,24 @@ class KeySwipeService : AccessibilityService() {
         super.onDestroy()
     }
 
+    // 現在のIME(キーボード)のパッケージ名。IMEのウィンドウイベントは
+    // 「一覧が閉じた」判定から除外する（Gboardのイベントで選択モードが
+    // 誤解除される実測不具合があった）
+    private val imePackage: String? by lazy {
+        android.provider.Settings.Secure.getString(
+            contentResolver, android.provider.Settings.Secure.DEFAULT_INPUT_METHOD
+        )?.substringBefore('/')
+    }
+
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event?.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
         val pkg = event.packageName?.toString() ?: return
-        // ランチャー(アプリ一覧)以外が前面に来たら、一覧での選択モードを終える
-        // （手動でカードをタップした・ホームに戻った・コミット完了した等）
-        if (overviewMode && pkg != LAUNCHER_PACKAGE && pkg != packageName) {
+        // ランチャー(アプリ一覧)以外の「実アプリ」が前面に来たら選択モードを終える
+        // （手動でカードをタップした・ホームに戻った・コミット完了した等）。
+        // IME・システムUI・自分自身のウィンドウイベントはアプリ切り替えではない。
+        if (overviewMode && pkg != LAUNCHER_PACKAGE && pkg != packageName &&
+            pkg != imePackage && pkg != "com.android.systemui"
+        ) {
             Log.d(TAG, "overviewMode cleared by window change: $pkg")
             overviewMode = false
             overviewCards = emptyList()
