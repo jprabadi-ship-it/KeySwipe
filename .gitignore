@@ -1,0 +1,16 @@
+# Gradle
+.gradle/
+build/
+app/build/
+
+# Android Studio / IDE
+.idea/
+*.iml
+.kotlin/
+captures/
+
+# ローカル環境設定（SDKパス等、マシン固有）
+local.properties
+
+# macOS
+.DS_Store
