@@ -215,7 +215,8 @@ class KeySwipeService : AccessibilityService() {
     }
 
     override fun onKeyEvent(event: KeyEvent): Boolean {
-        Log.d(TAG, "onKeyEvent: code=${event.keyCode} action=${event.action} meta=${event.metaState}")
+        // 注意: ここは全キー入力が通る経路。素通りさせるキーの処理は最短に保つ
+        // （ログ出力も連打時のオーバーヘッドになるため、通常キーでは行わない）
 
         // アプリ一覧の選択中は Enter で確定（消費してアプリには流さない）
         if (overviewMode &&
