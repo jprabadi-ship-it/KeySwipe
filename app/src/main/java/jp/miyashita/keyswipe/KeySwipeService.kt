@@ -244,14 +244,24 @@ class KeySwipeService : AccessibilityService() {
                     "meta=${event.metaState} overview=$overviewMode")
         }
 
-        // アプリ一覧の選択中: ←/→（Ctrl不要）で枠移動、Enter で確定。
-        // どちらも消費してアプリには流さない。
+        // アプリ一覧の選択中: ↑↓←→（Ctrl不要）で枠を上下左右に移動、Enter で確定。
+        // いずれも消費してアプリには流さない。
         if (overviewMode) {
             when (event.keyCode) {
-                KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT,
+                KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN -> {
                     if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
-                        val delta = if (event.keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) -1 else 1
-                        suspendScrollModeAnd { moveOverviewSelection(delta) }
+                        val dx = when (event.keyCode) {
+                            KeyEvent.KEYCODE_DPAD_LEFT -> -1
+                            KeyEvent.KEYCODE_DPAD_RIGHT -> 1
+                            else -> 0
+                        }
+                        val dy = when (event.keyCode) {
+                            KeyEvent.KEYCODE_DPAD_UP -> -1
+                            KeyEvent.KEYCODE_DPAD_DOWN -> 1
+                            else -> 0
+                        }
+                        suspendScrollModeAnd { moveOverviewSelectionSpatial(dx, dy) }
                     }
                     return true
                 }
@@ -588,6 +598,60 @@ class KeySwipeService : AccessibilityService() {
     }
 
     /** カードの照合キー（アプリ名）。説明はカード本体ではなく子のサムネイルに付く。 */
+    /**
+     * カードの実座標に基づく空間ナビゲーション。dx/dy の方向にある最も近い
+     * カードへ枠を移動する（直交方向のズレは重めに罰して直感的な隣を選ぶ）。
+     * 横方向で候補が無い場合は端なのでページ送りに委譲する。
+     */
+    private fun moveOverviewSelectionSpatial(dx: Int, dy: Int, attempts: Int = 4) {
+        if (overviewCards.isEmpty()) refreshOverviewCards()
+        if (overviewCards.isEmpty()) {
+            if (attempts > 0) {
+                mainHandler.postDelayed({
+                    if (overviewMode) moveOverviewSelectionSpatial(dx, dy, attempts - 1)
+                }, 250L)
+            } else {
+                Log.w(TAG, "moveOverviewSelectionSpatial: no cards found, resetting")
+                overviewMode = false
+                stopHighlightTracking()
+                hideHighlight()
+            }
+            return
+        }
+        val current = overviewCards.getOrNull(overviewIndex) ?: run {
+            overviewIndex = 0
+            showHighlight(overviewCards[0].bounds)
+            startHighlightTracking()
+            return
+        }
+        val cb = current.bounds
+        val best = overviewCards.withIndex()
+            .filter { (i, c) ->
+                if (i == overviewIndex) return@filter false
+                when {
+                    dx < 0 -> c.bounds.centerX() < cb.centerX() - 10
+                    dx > 0 -> c.bounds.centerX() > cb.centerX() + 10
+                    dy < 0 -> c.bounds.centerY() < cb.centerY() - 10
+                    else -> c.bounds.centerY() > cb.centerY() + 10
+                }
+            }
+            .minByOrNull { (_, c) ->
+                val ddx = abs(c.bounds.centerX() - cb.centerX()).toFloat()
+                val ddy = abs(c.bounds.centerY() - cb.centerY()).toFloat()
+                if (dx != 0) ddx + ddy * 3f else ddy + ddx * 3f
+            }
+        if (best == null) {
+            // 横の端に達した: ページ送りして続きへ（←=古い方=+1 / →=新しい方=-1）
+            if (dx != 0) scrollOverviewPageAndContinue(if (dx < 0) 1 else -1)
+            return
+        }
+        overviewIndex = best.index
+        overviewScrolled = true
+        showHighlight(overviewCards[overviewIndex].bounds)
+        startHighlightTracking()
+        Log.d(TAG, "overview spatial(dx=$dx,dy=$dy) -> $overviewIndex / ${overviewCards.size}")
+    }
+
     private fun cardKey(card: OverviewCard): String = findDescription(card.node, 0) ?: ""
 
     private fun findDescription(node: AccessibilityNodeInfo?, depth: Int): String? {
