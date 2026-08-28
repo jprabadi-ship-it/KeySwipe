@@ -145,6 +145,22 @@
 
                         <TextView
                             style="@style/KeyChip"
+                            android:text="@string/key_qs" />
+
+                        <TextView
+                            style="@style/KeyDesc"
+                            android:text="@string/desc_qs" />
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical">
+
+                        <TextView
+                            style="@style/KeyChip"
                             android:text="@string/key_ctrl_down" />
 
                         <TextView

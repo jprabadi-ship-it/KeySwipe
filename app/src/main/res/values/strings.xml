@@ -7,6 +7,8 @@
     <string name="master_switch_hint">OFF にするとすべてのキー入力を横取りせず、そのままアプリに届けます（ユーザー補助サービスは有効のまま。ワンタップで再開できます）。</string>
     <string name="key_ctrl_up">Ctrl + ↑</string>
     <string name="key_ctrl_lr">← →</string>
+    <string name="key_qs">Ctrl + ← →</string>
+    <string name="desc_qs">隣のアプリへ切り替え（下のバーを横スワイプ）</string>
     <string name="key_enter">Enter</string>
     <string name="key_ctrl_down">Ctrl + ↓</string>
     <string name="key_ctrl_ball">Ctrl + ボール</string>

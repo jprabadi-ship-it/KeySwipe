@@ -285,8 +285,14 @@ class KeySwipeService : AccessibilityService() {
         if (!event.isCtrlPressed) return false
 
         val action: () -> Unit = when (event.keyCode) {
-            // ←/→ の枠移動は上の overviewMode ブロックで処理済み（Ctrl不要）。
-            // 一覧が開いていないときの ←/→ は通常のキーとしてアプリへ流れる。
+            // 一覧が開いていないときの Ctrl+←/→: 下端ナビバーの横スワイプを注入して
+            // クイックスイッチ（一覧選択中の素の←/→は上のブロックで処理済み）
+            KeyEvent.KEYCODE_DPAD_RIGHT -> ({
+                suspendScrollModeAnd { performQuickSwitchBySwipe(toRightApp = true) }
+            })
+            KeyEvent.KEYCODE_DPAD_LEFT -> ({
+                suspendScrollModeAnd { performQuickSwitchBySwipe(toRightApp = false) }
+            })
             KeyEvent.KEYCODE_DPAD_UP -> {
                 // スイッチOFF時は横取りせず、キーをそのままアプリへ流す
                 if (!Prefs.isUpDownEnabled(this)) return false
@@ -807,6 +813,68 @@ class KeySwipeService : AccessibilityService() {
             getSystemService(WindowManager::class.java)?.removeView(view)
         } catch (_: Exception) {
         }
+    }
+
+    /**
+     * 下端ナビバーの横スワイプ（クイックスイッチ）を注入して隣のアプリへ切り替える。
+     * 前半は速く、後半は減速して指を離す2段階ストロークで手のスワイプ感を再現。
+     * 注意: タスクバー固定表示の画面では横スワイプのクイックスイッチ自体が
+     * OSに存在しないため効かない（タスクバーを一時表示にすると使える）。
+     */
+    private fun performQuickSwitchBySwipe(toRightApp: Boolean) {
+        if (gestureInFlight) return
+        val wm = getSystemService(WindowManager::class.java) ?: return
+        val metrics = wm.currentWindowMetrics
+        val bounds = metrics.bounds
+        val w = bounds.width().toFloat()
+        val h = bounds.height().toFloat()
+        val navBottom = metrics.windowInsets
+            .getInsets(android.view.WindowInsets.Type.navigationBars())
+            .bottom
+        // 細いジェスチャーバーならその中央、固定タスクバー等は最下端ぎりぎりを狙う
+        val y = if (navBottom in 1 until TASKBAR_MIN_HEIGHT_PX) h - navBottom / 2f else h - 15f
+        Log.d(TAG, "performQuickSwitchBySwipe(toRight=$toRightApp, navBottom=$navBottom, y=$y)")
+
+        // タッチスクロールの向き: 右側(新しい方)のアプリを出す = バーを左へフリック
+        val swipeLeft = if (SWAP_DIRECTIONS) !toRightApp else toRightApp
+        val distance = w * SWIPE_WIDTH_RATIO
+        val startX = w / 2f
+        val dir = if (swipeLeft) -1f else 1f
+        val midX = startX + dir * distance * QS_SEG1_RATIO
+        val endX = startX + dir * distance
+
+        val path1 = Path().apply {
+            moveTo(startX, y)
+            lineTo(midX, y)
+        }
+        val stroke1 = GestureDescription.StrokeDescription(path1, 0, QS_SEG1_MS, true)
+
+        gestureInFlight = true
+        val done: (String) -> Unit = { msg ->
+            Log.d(TAG, msg)
+            gestureInFlight = false
+        }
+        val dispatched = dispatchGesture(buildGesture(stroke1), object : GestureResultCallback() {
+            override fun onCompleted(g: GestureDescription?) {
+                val path2 = Path().apply {
+                    moveTo(midX, y)
+                    lineTo(endX, y)
+                }
+                val stroke2 = stroke1.continueStroke(path2, 0, QS_SEG2_MS, false)
+                val ok = dispatchGesture(buildGesture(stroke2), object : GestureResultCallback() {
+                    override fun onCompleted(g2: GestureDescription?) =
+                        done("quick-switch swipe completed")
+
+                    override fun onCancelled(g2: GestureDescription?) =
+                        done("quick-switch swipe cancelled (seg2)")
+                }, null)
+                if (!ok) done("quick-switch swipe dispatch failed (seg2)")
+            }
+
+            override fun onCancelled(g: GestureDescription?) =
+                done("quick-switch swipe cancelled (seg1)")
+        }, null)
+        if (!dispatched) gestureInFlight = false
     }
 
     private fun buildGesture(stroke: GestureDescription.StrokeDescription): GestureDescription =
