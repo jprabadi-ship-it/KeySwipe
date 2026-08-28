@@ -238,6 +238,12 @@ class KeySwipeService : AccessibilityService() {
         // マスタースイッチOFF: 一切横取りしない
         if (!Prefs.isMasterEnabled(this)) return false
 
+        // 診断用: Ctrl押下中と一覧選択中のキーだけログする（素のキーは対象外）
+        if (overviewMode || event.isCtrlPressed) {
+            Log.d(TAG, "key: code=${event.keyCode} action=${event.action} " +
+                    "meta=${event.metaState} overview=$overviewMode")
+        }
+
         // アプリ一覧の選択中は Enter で確定（消費してアプリには流さない）
         if (overviewMode &&
             (event.keyCode == KeyEvent.KEYCODE_ENTER ||
