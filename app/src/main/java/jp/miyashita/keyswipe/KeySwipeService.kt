@@ -244,15 +244,24 @@ class KeySwipeService : AccessibilityService() {
                     "meta=${event.metaState} overview=$overviewMode")
         }
 
-        // アプリ一覧の選択中は Enter で確定（消費してアプリには流さない）
-        if (overviewMode &&
-            (event.keyCode == KeyEvent.KEYCODE_ENTER ||
-                event.keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER)
-        ) {
-            if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
-                commitOverviewSelection()
+        // アプリ一覧の選択中: ←/→（Ctrl不要）で枠移動、Enter で確定。
+        // どちらも消費してアプリには流さない。
+        if (overviewMode) {
+            when (event.keyCode) {
+                KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                    if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
+                        val delta = if (event.keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) -1 else 1
+                        suspendScrollModeAnd { moveOverviewSelection(delta) }
+                    }
+                    return true
+                }
+                KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER -> {
+                    if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
+                        commitOverviewSelection()
+                    }
+                    return true
+                }
             }
-            return true
         }
 
         // スクロール修飾キーはモードのトグルとして監視する（消費はしない）
@@ -276,16 +285,8 @@ class KeySwipeService : AccessibilityService() {
         if (!event.isCtrlPressed) return false
 
         val action: () -> Unit = when (event.keyCode) {
-            // ←/→ は一覧の選択モード中だけ横取りして選択枠を動かす。
-            // 一覧が開いていないときは通常のキーとしてアプリへ流す。
-            KeyEvent.KEYCODE_DPAD_RIGHT -> {
-                if (!overviewMode) return false
-                ({ suspendScrollModeAnd { moveOverviewSelection(-1) } })
-            }
-            KeyEvent.KEYCODE_DPAD_LEFT -> {
-                if (!overviewMode) return false
-                ({ suspendScrollModeAnd { moveOverviewSelection(1) } })
-            }
+            // ←/→ の枠移動は上の overviewMode ブロックで処理済み（Ctrl不要）。
+            // 一覧が開いていないときの ←/→ は通常のキーとしてアプリへ流れる。
             KeyEvent.KEYCODE_DPAD_UP -> {
                 // スイッチOFF時は横取りせず、キーをそのままアプリへ流す
                 if (!Prefs.isUpDownEnabled(this)) return false
