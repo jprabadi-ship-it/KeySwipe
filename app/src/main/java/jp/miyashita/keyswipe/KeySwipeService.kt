@@ -816,15 +816,9 @@ class KeySwipeService : AccessibilityService() {
         allowPage: Boolean = true,
         queueIfBusy: Boolean = true,
     ) {
-        if (queueIfBusy && selectionBusy) {
-            queuedDx = dx
-            queuedDy = dy
-            hasQueuedMove = true
-            Log.d(TAG, "queued move dx=$dx dy=$dy (busy)")
-            return
-        }
-        // 地図が古くなっていたら（手でスクロールされた等）操作前に更新
-        if (overviewCards.isNotEmpty() &&
+        // 地図が古くなっていたら（手でスクロールされた等）操作前に更新。
+        // ジェスチャー実行中でも格子移動は座標に依存しないので待たずに処理する
+        if (!selectionBusy && overviewCards.isNotEmpty() &&
             android.os.SystemClock.uptimeMillis() - lastCardScanAt > 3000L
         ) {
             rescanKeepingSelection()
@@ -859,23 +853,11 @@ class KeySwipeService : AccessibilityService() {
             startHighlightTracking()
             return
         }
-        val cb = current.bounds
-        val best = overviewCards.withIndex()
-            .filter { (i, c) ->
-                if (i == overviewIndex) return@filter false
-                when {
-                    dx < 0 -> c.bounds.centerX() < cb.centerX() - 10
-                    dx > 0 -> c.bounds.centerX() > cb.centerX() + 10
-                    dy < 0 -> c.bounds.centerY() < cb.centerY() - 10
-                    else -> c.bounds.centerY() > cb.centerY() + 10
-                }
-            }
-            .minByOrNull { (_, c) ->
-                val ddx = abs(c.bounds.centerX() - cb.centerX()).toFloat()
-                val ddy = abs(c.bounds.centerY() - cb.centerY()).toFloat()
-                if (dx != 0) ddx + ddy * 3f else ddy + ddx * 3f
-            }
-        if (best == null) {
+        if (cardRows.size != overviewCards.size) buildCardGrid()
+        val curRow = cardRows.getOrElse(overviewIndex) { 0 }
+        val curCol = cardCols.getOrElse(overviewIndex) { 0 }
+        val targetIdx = indexAt(curRow + dy, curCol + dx, curRow)
+        if (targetIdx < 0 || targetIdx == overviewIndex) {
             if (!allowPage) return
             if (selectionIsDrawer) {
                 // ドロワー: 上下の端に達したら縦スクロールで続きの行を呼び込む
@@ -886,11 +868,13 @@ class KeySwipeService : AccessibilityService() {
             }
             return
         }
-        overviewIndex = best.index
+        overviewIndex = targetIdx
         overviewScrolled = true
         showHighlight(overviewCards[overviewIndex].bounds)
         startHighlightTracking()
-        Log.d(TAG, "overview spatial(dx=$dx,dy=$dy) -> $overviewIndex / ${overviewCards.size}")
+        Log.d(TAG, "overview grid(dx=$dx,dy=$dy) -> $overviewIndex " +
+                "(row=${cardRows.getOrElse(targetIdx) { -1 }}, " +
+                "col=${cardCols.getOrElse(targetIdx) { -1 }}) / ${overviewCards.size}")
         // 見切れカードを選んだ場合は、全体が見えるところまでグリッドを寄せる
         nudgeSelectedIntoView()
     }
@@ -900,7 +884,7 @@ class KeySwipeService : AccessibilityService() {
      * ドラッグして全体を表示し、収まった座標で地図と枠を補正する。
      */
     private fun nudgeSelectedIntoView() {
-        if (gestureInFlight) return
+        if (selectionBusy) return
         val card = overviewCards.getOrNull(overviewIndex) ?: return
         val g = screenGeometry() ?: return
         val w = g[0]
@@ -1011,6 +995,43 @@ class KeySwipeService : AccessibilityService() {
             showHighlight(it.bounds)
             startHighlightTracking()
         }
+    }
+
+    // カードを行・列の格子として保持する。移動をこの格子上の論理演算で行うと、
+    // アニメーション中の座標に左右されず即座に正しい隣を選べる（座標ベースだと
+    // 動いている最中に判定を誤り「押しても動かない」体感になっていた）。
+    private var cardRows = IntArray(0)
+    private var cardCols = IntArray(0)
+
+    private fun buildCardGrid() {
+        val n = overviewCards.size
+        cardRows = IntArray(n)
+        cardCols = IntArray(n)
+        if (n == 0) return
+        val hTol = overviewCards.maxOf { it.bounds.height() } / 2
+        val wTol = overviewCards.maxOf { it.bounds.width() } / 2
+        val rowReps = mutableListOf<Int>()
+        for (y in overviewCards.map { it.bounds.centerY() }.sorted()) {
+            if (rowReps.none { abs(it - y) <= hTol }) rowReps.add(y)
+        }
+        val colReps = mutableListOf<Int>()
+        for (x in overviewCards.map { it.bounds.centerX() }.sorted()) {
+            if (colReps.none { abs(it - x) <= wTol }) colReps.add(x)
+        }
+        for (i in 0 until n) {
+            val b = overviewCards[i].bounds
+            cardRows[i] = rowReps.indexOfFirst { abs(it - b.centerY()) <= hTol }.coerceAtLeast(0)
+            cardCols[i] = colReps.indexOfFirst { abs(it - b.centerX()) <= wTol }.coerceAtLeast(0)
+        }
+    }
+
+    /** 指定した行・列のカードを探す（無ければ行の近い順に妥協する）。 */
+    private fun indexAt(row: Int, col: Int, preferRow: Int): Int {
+        val exact = overviewCards.indices.firstOrNull { cardRows[it] == row && cardCols[it] == col }
+        if (exact != null) return exact
+        return overviewCards.indices
+            .filter { cardCols[it] == col }
+            .minByOrNull { abs(cardRows[it] - preferRow) } ?: -1
     }
 
     private fun cardKey(card: OverviewCard): String = findDescription(card.node, 0) ?: ""
@@ -1240,6 +1261,7 @@ class KeySwipeService : AccessibilityService() {
             )
         }
         overviewIndex = 0
+        buildCardGrid()
         if (overviewCards.isNotEmpty()) {
             lastCardScanAt = android.os.SystemClock.uptimeMillis()
         }
