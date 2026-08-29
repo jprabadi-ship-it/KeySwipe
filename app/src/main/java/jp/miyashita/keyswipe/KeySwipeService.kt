@@ -71,6 +71,8 @@ class KeySwipeService : AccessibilityService() {
         private const val OVERLAY_SETTLE_DELAY_MS = 50L
         // Recents 2連打の間隔（Overview が開いてから確定させるまで）
         private const val RECENTS_DOUBLE_DELAY_MS = 350L
+        // ホームに戻ってからドロワー用の上スワイプを打つまでの待ち
+        private const val DRAWER_SWIPE_DELAY_MS = 450L
         // これ以上の高さのナビバーは固定タスクバーとみなす
         // （細いジェスチャーバーは~60px、Fold内側の固定タスクバーは136px: 実測）
         private const val TASKBAR_MIN_HEIGHT_PX = 100
@@ -338,36 +340,30 @@ class KeySwipeService : AccessibilityService() {
         }
     }
 
-    /** アプリドロワー（全インストールアプリ一覧）を開く。 */
+    /**
+     * アプリドロワー（全インストールアプリ一覧）を開く。
+     *
+     * GLOBAL_ACTION_ACCESSIBILITY_ALL_APPS はタスクバーのある大画面では
+     * 「Taskbar Overlay」の全アプリパネルを開き、これは物理キーの矢印ナビを
+     * 一切受け付けない（実測: mCurrentFocus は移るがキーに無反応）。
+     * そこでホームへ戻ってから上スワイプを注入し、キーボード操作が効く
+     * ランチャー本来のドロワーを開く。
+     */
     private fun openAllApps() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            // Android 12+ の公式グローバルアクション。ランチャーのドロワーが開く。
-            performGlobalAction(GLOBAL_ACTION_ACCESSIBILITY_ALL_APPS)
-            // このアクションで開いたドロワーは入力フォーカスが背後のアプリに
-            // 残ったままになり、物理キーの矢印ナビが効かない（実測）。
-            // 開いた後に小さなタッチスクロールを注入してフォーカスを渡す。
-            mainHandler.postDelayed({ nudgeDrawerFocus() }, 600L)
-        } else {
-            // API 30 向けフォールバック: ホームに戻る（ドロワー直接表示のアクションがない）
-            performGlobalAction(GLOBAL_ACTION_HOME)
-        }
+        performGlobalAction(GLOBAL_ACTION_HOME)
+        mainHandler.postDelayed({ injectDrawerOpenSwipe() }, DRAWER_SWIPE_DELAY_MS)
     }
 
-    /**
-     * ドロワーへ入力フォーカスを渡すための小さなドラッグを注入する。
-     * リスト最上部での下方向オーバースクロールなので、見た目は一瞬の
-     * 跳ね返りだけで位置は変わらない。タップだとアプリを起動してしまうため不可。
-     */
-    private fun nudgeDrawerFocus() {
+    /** ホーム画面で上スワイプを注入してドロワーを開く。 */
+    private fun injectDrawerOpenSwipe() {
         val g = screenGeometry() ?: return
         val x = g[0] / 2f
-        val y = g[1] * 0.6f
         val path = Path().apply {
-            moveTo(x, y)
-            lineTo(x, y + 80f)
+            moveTo(x, g[1] * 0.85f)
+            lineTo(x, g[1] * 0.35f)
         }
-        val stroke = GestureDescription.StrokeDescription(path, 0, 120L, false)
-        Log.d(TAG, "nudgeDrawerFocus")
+        val stroke = GestureDescription.StrokeDescription(path, 0, 250L, false)
+        Log.d(TAG, "injectDrawerOpenSwipe")
         dispatchGesture(buildGesture(stroke), null, null)
     }
 
