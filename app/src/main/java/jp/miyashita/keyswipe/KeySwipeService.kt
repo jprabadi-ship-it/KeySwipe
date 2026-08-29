@@ -71,10 +71,6 @@ class KeySwipeService : AccessibilityService() {
         private const val OVERLAY_SETTLE_DELAY_MS = 50L
         // Recents 2連打の間隔（Overview が開いてから確定させるまで）
         private const val RECENTS_DOUBLE_DELAY_MS = 350L
-        // ホームに戻ってからドロワー用の上スワイプを打つまでの待ち
-        private const val DRAWER_SWIPE_DELAY_MS = 350L
-        // ドロワーが開いてから青枠選択モードを開始するまでの待ち
-        private const val DRAWER_SELECT_DELAY_MS = 650L
         // これ以上の高さのナビバーは固定タスクバーとみなす
         // （細いジェスチャーバーは~60px、Fold内側の固定タスクバーは136px: 実測）
         private const val TASKBAR_MIN_HEIGHT_PX = 100
@@ -364,13 +360,40 @@ class KeySwipeService : AccessibilityService() {
         overviewIndex = 0
         overviewOpenedAt = android.os.SystemClock.uptimeMillis()
         performGlobalAction(GLOBAL_ACTION_HOME)
-        mainHandler.postDelayed({ injectDrawerOpenSwipe() }, DRAWER_SWIPE_DELAY_MS)
-        mainHandler.postDelayed({
-            if (overviewMode && selectionIsDrawer) moveOverviewSelection(0, attempts = 6)
-        }, DRAWER_SELECT_DELAY_MS)
-        // 開くアニメーション中のスキャンは座標ズレ・行欠けを含むため、
-        // 地図が安定する（2回連続で同じ結果になる）まで連続再スキャンする
-        scheduleDrawerStabilize()
+        // 固定タイマーではなく「条件が成立した瞬間に次へ進む」ポーリングで最短化
+        pollHomeThenSwipe(tries = 8)
+    }
+
+    /** ホーム画面が前面に来たらすぐドロワー用スワイプを打つ（50ms間隔で検知）。 */
+    private fun pollHomeThenSwipe(tries: Int) {
+        if (!overviewMode || !selectionIsDrawer) return
+        val onHome = rootInActiveWindow?.packageName?.toString() == LAUNCHER_PACKAGE
+        if (onHome || tries <= 0) {
+            injectDrawerOpenSwipe()
+            // スワイプ進行中からアイコン検出を試行開始
+            mainHandler.postDelayed({ pollDrawerScan(tries = 20) }, 180L)
+        } else {
+            mainHandler.postDelayed({ pollHomeThenSwipe(tries - 1) }, 50L)
+        }
+    }
+
+    /** アイコンが検出できた瞬間に青枠を出す（120ms間隔で試行）。 */
+    private fun pollDrawerScan(tries: Int) {
+        if (!overviewMode || !selectionIsDrawer) return
+        if (overviewCards.isEmpty()) refreshOverviewCards()
+        if (overviewCards.size >= 8) {
+            overviewIndex = 0
+            overviewScrolled = true
+            showHighlight(overviewCards[0].bounds)
+            startHighlightTracking()
+            Log.d(TAG, "pollDrawerScan: ready with ${overviewCards.size} cards")
+            // 以後はアニメーション中の座標ズレを収束再スキャンで矯正
+            scheduleDrawerStabilize()
+            return
+        }
+        if (tries > 0) {
+            mainHandler.postDelayed({ pollDrawerScan(tries - 1) }, 120L)
+        }
     }
 
     // 地図の安定化ループ
@@ -386,14 +409,14 @@ class KeySwipeService : AccessibilityService() {
                 Log.d(TAG, "drawer map stabilized: $after")
                 return
             }
-            mainHandler.postDelayed(this, 400L)
+            mainHandler.postDelayed(this, 250L)
         }
     }
 
     private fun scheduleDrawerStabilize() {
-        stabilizeTriesLeft = 6
+        stabilizeTriesLeft = 8
         mainHandler.removeCallbacks(stabilizeRunnable)
-        mainHandler.postDelayed(stabilizeRunnable, DRAWER_SELECT_DELAY_MS + 300L)
+        mainHandler.postDelayed(stabilizeRunnable, 250L)
     }
 
     private fun mapSignature(): String {
@@ -411,7 +434,7 @@ class KeySwipeService : AccessibilityService() {
             moveTo(x, g[1] * 0.85f)
             lineTo(x, g[1] * 0.35f)
         }
-        val stroke = GestureDescription.StrokeDescription(path, 0, 200L, false)
+        val stroke = GestureDescription.StrokeDescription(path, 0, 120L, false)
         Log.d(TAG, "injectDrawerOpenSwipe")
         dispatchGesture(buildGesture(stroke), null, null)
     }
@@ -981,13 +1004,7 @@ class KeySwipeService : AccessibilityService() {
 
     /** アプリ一覧のウィンドウからタスクカード（大きなクリック可能要素）を検出する。 */
     private fun refreshOverviewCards() {
-        // ドロワーは開き切る前に検出するとホーム画面のアイコンを誤検出するため、
-        // オープンシーケンス完了まで待つ（リトライ側が拾い直す）
-        if (selectionIsDrawer &&
-            android.os.SystemClock.uptimeMillis() - overviewOpenedAt < DRAWER_SELECT_DELAY_MS
-        ) {
-            return
-        }
+        // （ID指定検出のため、開き切る前のスキャンでも誤検出はしない）
         val roots = launcherRoots()
         if (roots.isEmpty()) {
             Log.d(TAG, "refreshOverviewCards: launcher window not found " +
