@@ -941,13 +941,15 @@ class KeySwipeService : AccessibilityService() {
 
         val found = mutableListOf<OverviewCard>()
         val accept: (AccessibilityNodeInfo, Rect) -> Boolean = if (selectionIsDrawer) {
-            // ドロワー: アプリアイコン相当の小さめクリック要素。
-            // 検索欄(横長)はサイズ上限で、タスクバーのアイコンは下端除外で弾く
+            // ドロワー: アプリアイコン相当のクリック要素（実測: セルは約189x250）。
+            // 最小120pxは、1アイコンにつき余分に検出される99x99の重複ノード
+            // （通知ドット等）を除外するため。検索欄(横長)はサイズ上限で、
+            // タスクバーのアイコンは下端除外で弾く
             val bottomLimit = g[1] - 240f
             ({ node, b ->
                 node.isClickable &&
-                    b.width() in 80..(g[0] * 0.3f).toInt() &&
-                    b.height() in 80..(g[1] * 0.3f).toInt() &&
+                    b.width() in 120..(g[0] * 0.3f).toInt() &&
+                    b.height() in 120..(g[1] * 0.3f).toInt() &&
                     b.centerY() < bottomLimit
             })
         } else {
