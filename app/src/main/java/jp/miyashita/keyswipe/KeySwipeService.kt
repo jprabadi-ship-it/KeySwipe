@@ -343,10 +343,32 @@ class KeySwipeService : AccessibilityService() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             // Android 12+ の公式グローバルアクション。ランチャーのドロワーが開く。
             performGlobalAction(GLOBAL_ACTION_ACCESSIBILITY_ALL_APPS)
+            // このアクションで開いたドロワーは入力フォーカスが背後のアプリに
+            // 残ったままになり、物理キーの矢印ナビが効かない（実測）。
+            // 開いた後に小さなタッチスクロールを注入してフォーカスを渡す。
+            mainHandler.postDelayed({ nudgeDrawerFocus() }, 600L)
         } else {
             // API 30 向けフォールバック: ホームに戻る（ドロワー直接表示のアクションがない）
             performGlobalAction(GLOBAL_ACTION_HOME)
         }
+    }
+
+    /**
+     * ドロワーへ入力フォーカスを渡すための小さなドラッグを注入する。
+     * リスト最上部での下方向オーバースクロールなので、見た目は一瞬の
+     * 跳ね返りだけで位置は変わらない。タップだとアプリを起動してしまうため不可。
+     */
+    private fun nudgeDrawerFocus() {
+        val g = screenGeometry() ?: return
+        val x = g[0] / 2f
+        val y = g[1] * 0.6f
+        val path = Path().apply {
+            moveTo(x, y)
+            lineTo(x, y + 80f)
+        }
+        val stroke = GestureDescription.StrokeDescription(path, 0, 120L, false)
+        Log.d(TAG, "nudgeDrawerFocus")
+        dispatchGesture(buildGesture(stroke), null, null)
     }
 
     // ------------------------------------------------------------------
