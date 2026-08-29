@@ -861,7 +861,7 @@ class KeySwipeService : AccessibilityService() {
             animator?.cancel()
             val start = RectF(from)
             animator = android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
-                duration = 140L
+                duration = 30L
                 interpolator = android.view.animation.DecelerateInterpolator()
                 addUpdateListener { a ->
                     val f = a.animatedValue as Float
