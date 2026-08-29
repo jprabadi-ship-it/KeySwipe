@@ -74,7 +74,7 @@ class KeySwipeService : AccessibilityService() {
         // ホームに戻ってからドロワー用の上スワイプを打つまでの待ち
         private const val DRAWER_SWIPE_DELAY_MS = 450L
         // ドロワーが開いてから青枠選択モードを開始するまでの待ち
-        private const val DRAWER_SELECT_DELAY_MS = 1200L
+        private const val DRAWER_SELECT_DELAY_MS = 750L
         // これ以上の高さのナビバーは固定タスクバーとみなす
         // （細いジェスチャーバーは~60px、Fold内側の固定タスクバーは136px: 実測）
         private const val TASKBAR_MIN_HEIGHT_PX = 100
@@ -256,7 +256,8 @@ class KeySwipeService : AccessibilityService() {
             when (event.keyCode) {
                 KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT,
                 KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN -> {
-                    if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
+                    // 長押しのオートリピートも受け付けて連続移動できるようにする
+                    if (event.action == KeyEvent.ACTION_DOWN) {
                         val dx = when (event.keyCode) {
                             KeyEvent.KEYCODE_DPAD_LEFT -> -1
                             KeyEvent.KEYCODE_DPAD_RIGHT -> 1
@@ -352,18 +353,19 @@ class KeySwipeService : AccessibilityService() {
      * ランチャー本来のドロワーを開く。
      */
     private fun openAllApps() {
+        // ランチャーのキーボードフォーカスは不安定（動く時と動かない時がある実測）
+        // なので頼らず、Overviewと同じ青枠選択モードでアイコンを操作する。
+        // モードは即座に有効化し、開くまでの間に押された矢印もリトライで反映する
+        selectionIsDrawer = true
+        overviewMode = true
+        overviewScrolled = false
+        overviewCards = emptyList()
+        overviewIndex = 0
+        overviewOpenedAt = android.os.SystemClock.uptimeMillis()
         performGlobalAction(GLOBAL_ACTION_HOME)
         mainHandler.postDelayed({ injectDrawerOpenSwipe() }, DRAWER_SWIPE_DELAY_MS)
-        // ランチャーのキーボードフォーカスは不安定（動く時と動かない時がある実測）
-        // なので頼らず、Overviewと同じ青枠選択モードでアイコンを操作する
         mainHandler.postDelayed({
-            selectionIsDrawer = true
-            overviewMode = true
-            overviewScrolled = false
-            overviewCards = emptyList()
-            overviewIndex = 0
-            overviewOpenedAt = android.os.SystemClock.uptimeMillis()
-            moveOverviewSelection(0)
+            if (overviewMode && selectionIsDrawer) moveOverviewSelection(0, attempts = 6)
         }, DRAWER_SELECT_DELAY_MS)
     }
 
@@ -898,6 +900,13 @@ class KeySwipeService : AccessibilityService() {
 
     /** アプリ一覧のウィンドウからタスクカード（大きなクリック可能要素）を検出する。 */
     private fun refreshOverviewCards() {
+        // ドロワーは開き切る前に検出するとホーム画面のアイコンを誤検出するため、
+        // オープンシーケンス完了まで待つ（リトライ側が拾い直す）
+        if (selectionIsDrawer &&
+            android.os.SystemClock.uptimeMillis() - overviewOpenedAt < DRAWER_SELECT_DELAY_MS
+        ) {
+            return
+        }
         val roots = launcherRoots()
         if (roots.isEmpty()) {
             Log.d(TAG, "refreshOverviewCards: launcher window not found " +
