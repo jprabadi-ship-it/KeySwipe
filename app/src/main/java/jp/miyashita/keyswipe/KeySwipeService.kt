@@ -839,16 +839,47 @@ class KeySwipeService : AccessibilityService() {
     // --- 選択枠ハイライトの描画 ---
 
     private inner class HighlightView(context: Context) : View(context) {
-        var target: Rect? = null
+        private var current: RectF? = null
+        private var animator: android.animation.ValueAnimator? = null
         private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.STROKE
             strokeWidth = 14f
             color = 0xFF2979FF.toInt()   // はっきりした青 (Blue A400)
         }
 
+        /** 枠を目標矩形へスッと滑らせる（瞬間ワープだとぎこちないため）。 */
+        fun moveTo(rect: Rect) {
+            val target = RectF(rect)
+            val from = current
+            if (from == null) {
+                // 初回は即表示
+                current = target
+                invalidate()
+                return
+            }
+            if (from == target) return
+            animator?.cancel()
+            val start = RectF(from)
+            animator = android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
+                duration = 140L
+                interpolator = android.view.animation.DecelerateInterpolator()
+                addUpdateListener { a ->
+                    val f = a.animatedValue as Float
+                    current = RectF(
+                        start.left + (target.left - start.left) * f,
+                        start.top + (target.top - start.top) * f,
+                        start.right + (target.right - start.right) * f,
+                        start.bottom + (target.bottom - start.bottom) * f
+                    )
+                    invalidate()
+                }
+                start()
+            }
+        }
+
         override fun onDraw(canvas: Canvas) {
-            val r = target ?: return
-            canvas.drawRoundRect(RectF(r), 48f, 48f, paint)
+            val r = current ?: return
+            canvas.drawRoundRect(r, 48f, 48f, paint)
         }
     }
 
@@ -876,8 +907,7 @@ class KeySwipeService : AccessibilityService() {
             highlightView = v
             v
         }
-        view.target = bounds
-        view.invalidate()
+        view.moveTo(bounds)
     }
 
     private fun hideHighlight() {
