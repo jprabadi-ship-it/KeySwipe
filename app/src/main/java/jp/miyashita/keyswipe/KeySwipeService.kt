@@ -72,9 +72,9 @@ class KeySwipeService : AccessibilityService() {
         // Recents 2連打の間隔（Overview が開いてから確定させるまで）
         private const val RECENTS_DOUBLE_DELAY_MS = 350L
         // ホームに戻ってからドロワー用の上スワイプを打つまでの待ち
-        private const val DRAWER_SWIPE_DELAY_MS = 450L
+        private const val DRAWER_SWIPE_DELAY_MS = 350L
         // ドロワーが開いてから青枠選択モードを開始するまでの待ち
-        private const val DRAWER_SELECT_DELAY_MS = 750L
+        private const val DRAWER_SELECT_DELAY_MS = 650L
         // これ以上の高さのナビバーは固定タスクバーとみなす
         // （細いジェスチャーバーは~60px、Fold内側の固定タスクバーは136px: 実測）
         private const val TASKBAR_MIN_HEIGHT_PX = 100
@@ -368,11 +368,39 @@ class KeySwipeService : AccessibilityService() {
         mainHandler.postDelayed({
             if (overviewMode && selectionIsDrawer) moveOverviewSelection(0, attempts = 6)
         }, DRAWER_SELECT_DELAY_MS)
-        // 開くアニメーション中の初回スキャンは行が欠けることがあるため、
-        // 落ち着いた頃に完全な地図へ差し替える
-        mainHandler.postDelayed({
-            if (overviewMode && selectionIsDrawer) rescanKeepingSelection()
-        }, DRAWER_SELECT_DELAY_MS + 700L)
+        // 開くアニメーション中のスキャンは座標ズレ・行欠けを含むため、
+        // 地図が安定する（2回連続で同じ結果になる）まで連続再スキャンする
+        scheduleDrawerStabilize()
+    }
+
+    // 地図の安定化ループ
+    private var stabilizeTriesLeft = 0
+    private var lastMapSignature = ""
+    private val stabilizeRunnable = object : Runnable {
+        override fun run() {
+            if (!overviewMode || !selectionIsDrawer || stabilizeTriesLeft-- <= 0) return
+            val before = mapSignature()
+            rescanKeepingSelection()
+            val after = mapSignature()
+            if (after.isNotEmpty() && after == before) {
+                Log.d(TAG, "drawer map stabilized: $after")
+                return
+            }
+            mainHandler.postDelayed(this, 400L)
+        }
+    }
+
+    private fun scheduleDrawerStabilize() {
+        stabilizeTriesLeft = 6
+        mainHandler.removeCallbacks(stabilizeRunnable)
+        mainHandler.postDelayed(stabilizeRunnable, DRAWER_SELECT_DELAY_MS + 300L)
+    }
+
+    private fun mapSignature(): String {
+        if (overviewCards.isEmpty()) return ""
+        return "${overviewCards.size}:" +
+                overviewCards.first().bounds.toShortString() +
+                overviewCards.last().bounds.toShortString()
     }
 
     /** ホーム画面で上スワイプを注入してドロワーを開く。 */
@@ -383,7 +411,7 @@ class KeySwipeService : AccessibilityService() {
             moveTo(x, g[1] * 0.85f)
             lineTo(x, g[1] * 0.35f)
         }
-        val stroke = GestureDescription.StrokeDescription(path, 0, 250L, false)
+        val stroke = GestureDescription.StrokeDescription(path, 0, 200L, false)
         Log.d(TAG, "injectDrawerOpenSwipe")
         dispatchGesture(buildGesture(stroke), null, null)
     }
