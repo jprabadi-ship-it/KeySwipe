@@ -70,7 +70,9 @@ class KeySwipeService : AccessibilityService() {
         private const val OVERLAY_SETTLE_DELAY_MS = 50L
         // 修飾キー押下からスクロールモード突入までのデバウンス。
         // Ctrl+矢印の同時押しでオーバーレイを一瞬でも出さないための猶予。
+        // Ctrlをスクロール修飾キーにしたときだけ必要で、Alt/Cmd専用なら即時でよい。
         private const val SCROLL_MODE_ENTER_DELAY_MS = 250L
+        private const val SCROLL_MODE_ENTER_DELAY_FAST_MS = 30L
         // アプリ切り替え後にスクロールモードへ復帰するまでの待ち（遷移アニメ完了待ち）
         private const val RESUME_AFTER_SWITCH_DELAY_MS = 800L
         // Recents 2連打の間隔（Overview が開いてから確定させるまで）
@@ -280,8 +282,14 @@ class KeySwipeService : AccessibilityService() {
             if (down != modifierDown) {
                 modifierDown = down
                 if (down) {
-                    // 即時ではなくデバウンスして突入（Ctrl+矢印同時押しと衝突させない）
-                    scheduleEnterScrollMode(SCROLL_MODE_ENTER_DELAY_MS)
+                    // Ctrl修飾のときだけデバウンス（Ctrl+矢印同時押しと衝突させない）。
+                    // Alt/Cmd はショートカットと共用しないので即時に近い速さで突入する
+                    val delay = if (Prefs.getScrollModifier(this) == Prefs.MOD_CTRL) {
+                        SCROLL_MODE_ENTER_DELAY_MS
+                    } else {
+                        SCROLL_MODE_ENTER_DELAY_FAST_MS
+                    }
+                    scheduleEnterScrollMode(delay)
                 } else {
                     cancelPendingEnterScrollMode()
                     exitScrollMode()
