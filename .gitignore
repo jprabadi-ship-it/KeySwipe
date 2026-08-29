@@ -12,5 +12,10 @@ captures/
 # ローカル環境設定（SDKパス等、マシン固有）
 local.properties
 
+# リリース署名（絶対にコミットしない）
+keystore.properties
+*.jks
+*.keystore
+
 # macOS
 .DS_Store
