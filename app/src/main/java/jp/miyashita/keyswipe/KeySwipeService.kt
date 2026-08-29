@@ -943,7 +943,7 @@ class KeySwipeService : AccessibilityService() {
         Log.d(TAG, "scrollDrawerPage: dyDir=$dyDir key=$key")
         val ok = dispatchDragNoFling(x, y0, x, y1, OVERVIEW_PAGE_SCROLL_MS) {
             gestureInFlight = false
-            pollAfterDrawerScroll(dyDir, key, prevKeys, prevCx, tries = 12)
+            pollAfterDrawerScroll(dyDir, key, prevKeys, prevCx, tries = 24)
         }
         if (!ok) {
             gestureInFlight = false
@@ -969,7 +969,7 @@ class KeySwipeService : AccessibilityService() {
         }
         if (tries > 0) {
             mainHandler.postDelayed(
-                { pollAfterDrawerScroll(dyDir, key, prevKeys, prevCx, tries - 1) }, 60L
+                { pollAfterDrawerScroll(dyDir, key, prevKeys, prevCx, tries - 1) }, 30L
             )
         }
     }
@@ -1128,7 +1128,7 @@ class KeySwipeService : AccessibilityService() {
         val ok = dispatchDragNoFling(startX, y, endX, y, OVERVIEW_PAGE_SCROLL_MS) {
             gestureInFlight = false
             // 固定待ちではなく、カードの顔ぶれが変わった瞬間に選び直す
-            pollAfterPageScroll(delta, key, prevKeys, prevCy, tries = 12)
+            pollAfterPageScroll(delta, key, prevKeys, prevCy, tries = 24)
         }
         if (!ok) {
             gestureInFlight = false
@@ -1155,7 +1155,7 @@ class KeySwipeService : AccessibilityService() {
         }
         if (tries > 0) {
             mainHandler.postDelayed(
-                { pollAfterPageScroll(delta, key, prevKeys, prevCy, tries - 1) }, 60L
+                { pollAfterPageScroll(delta, key, prevKeys, prevCy, tries - 1) }, 30L
             )
         }
     }
