@@ -77,12 +77,11 @@ class KeySwipeService : AccessibilityService() {
 
         // --- アプリ一覧で止まって選ぶ方式 ---
         private const val LAUNCHER_PACKAGE = "com.google.android.apps.nexuslauncher"
-        private const val OVERVIEW_PAGE_SCROLL_MS = 250L   // 端に達したときのページ送りドラッグ
+        private const val OVERVIEW_PAGE_SCROLL_MS = 150L   // 端に達したときのページ送りドラッグ
         // ページ送りの距離。グリッドの1列ピッチ(実測806px/2152px≒0.375)に合わせ、
         // 追跡中のカードが画面外へ出ないよう1列ぶんだけ送る
         private const val OVERVIEW_PAGE_SCROLL_RATIO = 0.38f
-        private const val OVERVIEW_RESCAN_DELAY_MS = 400L  // ページ送り後の再検出待ち
-        private const val OVERVIEW_INITIAL_HIGHLIGHT_DELAY_MS = 450L // 一覧が開くのを待って初期枠表示
+        private const val OVERVIEW_RESCAN_DELAY_MS = 180L  // ページ送り後の再検出待ち
         // 一覧を開いた直後は、元アプリ等のウィンドウイベントが飛び交うため
         // この間は「一覧が閉じた」判定をしない
         private const val OVERVIEW_OPEN_GRACE_MS = 800L
@@ -648,10 +647,23 @@ class KeySwipeService : AccessibilityService() {
         overviewCards = emptyList()
         overviewIndex = 0
         performGlobalAction(GLOBAL_ACTION_RECENTS)
-        // 一覧が開いたら、矢印を待たずに現在のカード(先頭)へ青枠を出す
-        mainHandler.postDelayed({
-            if (overviewMode) moveOverviewSelection(0)
-        }, OVERVIEW_INITIAL_HIGHLIGHT_DELAY_MS)
+        // 固定待ちではなく、カードが見つかった瞬間に青枠を出す
+        mainHandler.postDelayed({ pollOverviewScan(tries = 20) }, 120L)
+    }
+
+    /** 一覧のカードが検出できた瞬間に青枠を出す（80ms間隔で試行）。 */
+    private fun pollOverviewScan(tries: Int) {
+        if (!overviewMode || selectionIsDrawer) return
+        if (overviewCards.isEmpty()) refreshOverviewCards()
+        if (overviewCards.isNotEmpty()) {
+            overviewIndex = 0
+            overviewScrolled = true
+            showHighlight(overviewCards[0].bounds)
+            startHighlightTracking()
+            Log.d(TAG, "pollOverviewScan: ready with ${overviewCards.size} cards")
+            return
+        }
+        if (tries > 0) mainHandler.postDelayed({ pollOverviewScan(tries - 1) }, 80L)
     }
 
     /** 選択カーソルを移動する。カード未検出なら検出し、まだ描画途中なら待って再試行。 */
@@ -831,14 +843,14 @@ class KeySwipeService : AccessibilityService() {
             moveTo(sx, sy)
             lineTo(sx + dragX, sy + dragY)
         }
-        val stroke = GestureDescription.StrokeDescription(path, 0, 150L, false)
+        val stroke = GestureDescription.StrokeDescription(path, 0, 100L, false)
         gestureInFlight = true
         Log.d(TAG, "nudgeSelectedIntoView: dragX=$dragX dragY=$dragY")
         val ok = dispatchGesture(buildGesture(stroke), object : GestureResultCallback() {
             override fun onCompleted(gd: GestureDescription?) {
                 gestureInFlight = false
                 // 寄せた後の正確な座標で地図と枠を合わせ直す
-                mainHandler.postDelayed({ rescanKeepingSelection() }, 300L)
+                mainHandler.postDelayed({ rescanKeepingSelection() }, 180L)
             }
 
             override fun onCancelled(gd: GestureDescription?) {
@@ -1048,7 +1060,7 @@ class KeySwipeService : AccessibilityService() {
             scheduleFallbackHighlight()
             mainHandler.postDelayed({
                 if (overviewMode && !selectionIsDrawer) rescanKeepingSelection()
-            }, 350L)
+            }, 200L)
             return
         }
         // 元のカードが画面外に出た: 新しく現れたカードのうち、元と同じ行
@@ -1070,7 +1082,7 @@ class KeySwipeService : AccessibilityService() {
         // ページ送りアニメーション終了後の正確な座標で地図と枠を補正する
         mainHandler.postDelayed({
             if (overviewMode && !selectionIsDrawer) rescanKeepingSelection()
-        }, 350L)
+        }, 200L)
     }
 
     /**
