@@ -789,6 +789,64 @@ class KeySwipeService : AccessibilityService() {
         showHighlight(overviewCards[overviewIndex].bounds)
         startHighlightTracking()
         Log.d(TAG, "overview spatial(dx=$dx,dy=$dy) -> $overviewIndex / ${overviewCards.size}")
+        // 見切れカードを選んだ場合は、全体が見えるところまでグリッドを寄せる
+        nudgeSelectedIntoView()
+    }
+
+    /**
+     * 選択中のカードが画面端で見切れていたら、不足ぶんだけグリッドを
+     * ドラッグして全体を表示し、収まった座標で地図と枠を補正する。
+     */
+    private fun nudgeSelectedIntoView() {
+        if (gestureInFlight) return
+        val card = overviewCards.getOrNull(overviewIndex) ?: return
+        val g = screenGeometry() ?: return
+        val w = g[0]
+        val h = g[1]
+        val b = card.bounds
+        val fullW = overviewCards.maxOf { it.bounds.width() }
+        val fullH = overviewCards.maxOf { it.bounds.height() }
+        var dragX = 0f
+        var dragY = 0f
+        if (!selectionIsDrawer) {
+            // 横グリッド: 左右端の見切れを寄せる
+            if (b.left <= 2 && b.width() < fullW - 8) {
+                dragX = (fullW - b.width()) + 24f
+            } else if (b.right >= w - 2 && b.width() < fullW - 8) {
+                dragX = -((fullW - b.width()) + 24f)
+            }
+        } else {
+            // ドロワー: 上下端の見切れを寄せる
+            if (b.top <= 2 && b.height() < fullH - 8) {
+                dragY = (fullH - b.height()) + 24f
+            } else if (b.bottom >= h - 2 && b.height() < fullH - 8) {
+                dragY = -((fullH - b.height()) + 24f)
+            }
+        }
+        if (dragX == 0f && dragY == 0f) return
+
+        val sx = w / 2f
+        val sy = h / 2f
+        val path = Path().apply {
+            moveTo(sx, sy)
+            lineTo(sx + dragX, sy + dragY)
+        }
+        val stroke = GestureDescription.StrokeDescription(path, 0, 150L, false)
+        gestureInFlight = true
+        Log.d(TAG, "nudgeSelectedIntoView: dragX=$dragX dragY=$dragY")
+        val ok = dispatchGesture(buildGesture(stroke), object : GestureResultCallback() {
+            override fun onCompleted(gd: GestureDescription?) {
+                gestureInFlight = false
+                // 寄せた後の正確な座標で地図と枠を合わせ直す
+                mainHandler.postDelayed({ rescanKeepingSelection() }, 300L)
+            }
+
+            override fun onCancelled(gd: GestureDescription?) {
+                gestureInFlight = false
+            }
+        }, null)
+        if (!ok) gestureInFlight = false
+        startHighlightTracking()
     }
 
     /**
