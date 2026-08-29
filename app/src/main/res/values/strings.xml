@@ -5,7 +5,7 @@
     <string name="main_title">KeySwipe — Ctrl+矢印でアプリ操作</string>
     <string name="master_switch">KeySwipe を有効にする</string>
     <string name="master_switch_short">有効</string>
-    <string name="app_description">物理キーボードとトラックボールで Pixel を操作するユーザー補助ユーティリティです。アプリの切り替え、アプリ一覧からの選択、画面スクロールをキー操作だけで行えます。右上のスイッチを OFF にすると、すべてのキー入力を横取りせずそのままアプリに届けます。</string>
+    <string name="app_description">物理キーボードとトラックボールで Pixel を操作するユーザー補助ユーティリティです。\nアプリの切り替え、アプリ一覧からの選択、画面スクロールをキー操作だけで行えます。</string>
     <string name="master_switch_hint">OFF にするとすべてのキー入力を横取りせず、そのままアプリに届けます（ユーザー補助サービスは有効のまま。ワンタップで再開できます）。</string>
     <string name="key_ctrl_up">Ctrl + ↑</string>
     <string name="key_ctrl_lr">↑ ↓ ← →</string>
