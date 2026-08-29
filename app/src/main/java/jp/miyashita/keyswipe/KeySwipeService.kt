@@ -240,10 +240,10 @@ class KeySwipeService : AccessibilityService() {
         // マスタースイッチOFF: 一切横取りしない
         if (!Prefs.isMasterEnabled(this)) return false
 
-        // 診断用: Ctrl押下中と一覧選択中のキーだけログする（素のキーは対象外）
-        if (overviewMode || event.isCtrlPressed) {
+        // 診断用: Ctrl/修飾キー押下中と一覧選択中のキーだけログする（素のキーは対象外）
+        if (overviewMode || event.isCtrlPressed || modifierDown) {
             Log.d(TAG, "key: code=${event.keyCode} action=${event.action} " +
-                    "meta=${event.metaState} overview=$overviewMode")
+                    "meta=${event.metaState} overview=$overviewMode capture=${captureView != null}")
         }
 
         // アプリ一覧の選択中: ↑↓←→（Ctrl不要）で枠を上下左右に移動、Enter で確定。
