@@ -95,6 +95,14 @@ class MainActivity : AppCompatActivity() {
             if (fromUser) Prefs.setScrollAccel(this, v)
         }
 
+        // スクロール方向の反転
+        findViewById<MaterialSwitch>(R.id.invert_switch).apply {
+            isChecked = Prefs.isScrollInverted(this@MainActivity)
+            setOnCheckedChangeListener { _, checked ->
+                Prefs.setScrollInverted(this@MainActivity, checked)
+            }
+        }
+
         findViewById<MaterialButton>(R.id.open_settings_button).setOnClickListener {
             startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
         }

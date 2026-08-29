@@ -62,8 +62,6 @@ class KeySwipeService : AccessibilityService() {
         private const val SCROLL_STROKE_DURATION_MS = 50L
         private const val SCROLL_END_DURATION_MS = 10L
         private const val EDGE_MARGIN_RATIO = 0.12f     // 端ジェスチャー誤爆回避の安全マージン
-        // true: ボールを下に転がすとページが下へ進む（コンテンツは上へ動く）
-        private const val NATURAL_SCROLL = true
         // オーバーレイ除去がシステムに反映されるのを待つ時間。
         // 旧スワイプ注入方式では250ms必要だったが、現在のグローバルアクション/
         // 一覧選択方式では短くて足りる（長いと Ctrl+↑/↓ の反応が遅く感じる）
@@ -402,9 +400,10 @@ class KeySwipeService : AccessibilityService() {
         return floatArrayOf(w, h, w * EDGE_MARGIN_RATIO, h * EDGE_MARGIN_RATIO)
     }
 
-    /** 蓄積量を消費して移動ベクトル(ナチュラルスクロール適用済み)を返す。 */
+    /** 蓄積量を消費して移動ベクトル(スクロール方向設定適用済み)を返す。 */
     private fun consumeMove(): Pair<Float, Float> {
-        val sign = if (NATURAL_SCROLL) -1f else 1f
+        // 既定(-1): ボールを下に転がすとページが下へ進む。反転設定でその逆
+        val sign = if (Prefs.isScrollInverted(this)) 1f else -1f
         val moveX = accumX * sign
         val moveY = accumY * sign
         accumX = 0f

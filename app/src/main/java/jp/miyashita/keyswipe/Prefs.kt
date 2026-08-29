@@ -66,4 +66,14 @@ object Prefs {
     fun setScrollModifier(context: Context, value: String) {
         prefs(context).edit().putString(KEY_SCROLL_MODIFIER, value).apply()
     }
+
+    // スクロール方向の反転（false=既定: ボールを下に転がすとページが下へ進む）
+    private const val KEY_SCROLL_INVERT = "scroll_invert"
+
+    fun isScrollInverted(context: Context): Boolean =
+        prefs(context).getBoolean(KEY_SCROLL_INVERT, false)
+
+    fun setScrollInverted(context: Context, inverted: Boolean) {
+        prefs(context).edit().putBoolean(KEY_SCROLL_INVERT, inverted).apply()
+    }
 }

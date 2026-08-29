@@ -33,6 +33,8 @@
     <string name="mod_alt">Option (Alt)</string>
     <string name="mod_ctrl">Ctrl</string>
     <string name="mod_meta">Cmd (Meta)</string>
+    <string name="scroll_invert_switch">スクロール方向を反転</string>
+    <string name="scroll_invert_hint">OFF: ボールを下に転がすとページが下へ進む（既定） / ON: その逆方向</string>
     <string name="scroll_speed_label">速度: %s 倍</string>
     <string name="scroll_accel_label">加速: %s（0 で加速なし）</string>
     <string name="open_settings">ユーザー補助設定を開く</string>

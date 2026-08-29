@@ -308,6 +308,21 @@
                         android:valueFrom="0"
                         android:valueTo="100"
                         android:stepSize="1" />
+
+                    <com.google.android.material.materialswitch.MaterialSwitch
+                        android:id="@+id/invert_switch"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="@string/scroll_invert_switch" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:text="@string/scroll_invert_hint"
+                        android:textAppearance="?attr/textAppearanceBodySmall"
+                        android:textColor="?attr/colorOnSurfaceVariant" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
