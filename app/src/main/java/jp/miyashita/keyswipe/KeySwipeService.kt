@@ -947,7 +947,7 @@ class KeySwipeService : AccessibilityService() {
             // タスクバーのアイコンは下端除外で弾く
             val bottomLimit = g[1] - 240f
             ({ node, b ->
-                node.isClickable &&
+                node.isClickable && node.isVisibleToUser &&
                     b.width() in 120..(g[0] * 0.3f).toInt() &&
                     b.height() in 120..(g[1] * 0.3f).toInt() &&
                     b.centerY() < bottomLimit
@@ -956,7 +956,10 @@ class KeySwipeService : AccessibilityService() {
             // Overview: 画面の18%超の大きなタスクカード
             val minW = g[0] * 0.18f
             val minH = g[1] * 0.18f
-            ({ node, b -> node.isClickable && b.width() >= minW && b.height() >= minH })
+            ({ node, b ->
+                node.isClickable && node.isVisibleToUser &&
+                    b.width() >= minW && b.height() >= minH
+            })
         }
 
         fun visit(node: AccessibilityNodeInfo?) {
