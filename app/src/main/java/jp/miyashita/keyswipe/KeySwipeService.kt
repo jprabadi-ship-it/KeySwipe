@@ -69,13 +69,6 @@ class KeySwipeService : AccessibilityService() {
         // 旧スワイプ注入方式では250ms必要だったが、現在のグローバルアクション/
         // 一覧選択方式では短くて足りる（長いと Ctrl+↑/↓ の反応が遅く感じる）
         private const val OVERLAY_SETTLE_DELAY_MS = 50L
-        // 修飾キー押下からスクロールモード突入までのデバウンス。
-        // Ctrl+矢印の同時押しでオーバーレイを一瞬でも出さないための猶予。
-        // Ctrlをスクロール修飾キーにしたときだけ必要で、Alt/Cmd専用なら即時でよい。
-        private const val SCROLL_MODE_ENTER_DELAY_MS = 250L
-        private const val SCROLL_MODE_ENTER_DELAY_FAST_MS = 30L
-        // アプリ切り替え後にスクロールモードへ復帰するまでの待ち（遷移アニメ完了待ち）
-        private const val RESUME_AFTER_SWITCH_DELAY_MS = 800L
         // Recents 2連打の間隔（Overview が開いてから確定させるまで）
         private const val RECENTS_DOUBLE_DELAY_MS = 350L
         // これ以上の高さのナビバーは固定タスクバーとみなす
@@ -112,25 +105,31 @@ class KeySwipeService : AccessibilityService() {
     private var strokeX = 0f
     private var strokeY = 0f
 
-    // 修飾キー押下中にショートカット操作をしたら、離すまでスクロールモード突入を抑止する。
-    // Ctrl+↓連打などの最中にフォーカスを奪うオーバーレイが割り込むと引っかかるため。
-    private var scrollSuppressedUntilRelease = false
+    /**
+     * ボール移動の検知を切り替える（修飾キー押下中のみON）。
+     * 修飾キーを押しただけではオーバーレイを出さず、実際にボールが動いた瞬間に
+     * onMotionEvent 経由でスクロールモードへ入る。押下だけでフォーカスを奪う
+     * オーバーレイを出すと、レイヤーキー(=修飾キー)を押しながらの通常キー入力が
+     * オーバーレイに吸われて届かなくなるため（実測）。
+     */
+    private fun setMotionDetection(enable: Boolean) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) return
+        serviceInfo = serviceInfo?.apply {
+            motionEventSources = if (enable) {
+                android.view.InputDevice.SOURCE_MOUSE or android.view.InputDevice.SOURCE_TRACKBALL
+            } else {
+                0
+            }
+        }
+    }
 
-    // デバウンス付きのスクロールモード突入
-    private val enterScrollRunnable = Runnable {
-        // アプリ一覧の選択モード中・ショートカット操作後はオーバーレイを出さない
+    override fun onMotionEvent(event: MotionEvent) {
+        // 修飾キー押下中にボールが動いた: ここで初めてスクロールモードへ入る
         if (modifierDown && captureView == null && !overviewMode &&
-            !scrollSuppressedUntilRelease
-        ) enterScrollMode()
-    }
-
-    private fun scheduleEnterScrollMode(delayMs: Long) {
-        mainHandler.removeCallbacks(enterScrollRunnable)
-        mainHandler.postDelayed(enterScrollRunnable, delayMs)
-    }
-
-    private fun cancelPendingEnterScrollMode() {
-        mainHandler.removeCallbacks(enterScrollRunnable)
+            Prefs.isMasterEnabled(this)
+        ) {
+            enterScrollMode()
+        }
     }
 
     /** ポインタを掴むための透明オーバーレイ。ウィンドウフォーカス取得後にキャプチャする。 */
@@ -283,18 +282,11 @@ class KeySwipeService : AccessibilityService() {
             if (down != modifierDown) {
                 modifierDown = down
                 if (down) {
-                    // Ctrl修飾のときだけデバウンス（Ctrl+矢印同時押しと衝突させない）。
-                    // Alt/Cmd はショートカットと共用しないので即時に近い速さで突入する
-                    val delay = if (Prefs.getScrollModifier(this) == Prefs.MOD_CTRL) {
-                        SCROLL_MODE_ENTER_DELAY_MS
-                    } else {
-                        SCROLL_MODE_ENTER_DELAY_FAST_MS
-                    }
-                    scheduleEnterScrollMode(delay)
+                    // ボール移動の検知だけを開始（オーバーレイはまだ出さない）
+                    setMotionDetection(true)
                 } else {
-                    cancelPendingEnterScrollMode()
+                    setMotionDetection(false)
                     exitScrollMode()
-                    scrollSuppressedUntilRelease = false
                 }
             }
             // Ctrl を修飾キーにした場合も Ctrl+矢印の判定は下へ続行させる
@@ -337,9 +329,6 @@ class KeySwipeService : AccessibilityService() {
      * Recents などのシステム遷移が阻害されるため（実測）。
      */
     private fun suspendScrollModeAnd(run: (wasScrollMode: Boolean) -> Unit) {
-        // ショートカット操作をした修飾キー押下中は、以後スクロールモードに入らない
-        scrollSuppressedUntilRelease = true
-        cancelPendingEnterScrollMode()
         if (captureView != null) {
             exitScrollMode()
             // オーバーレイ除去とフォーカス返却が反映されてから実行する
@@ -514,12 +503,8 @@ class KeySwipeService : AccessibilityService() {
         }
     }
 
-    /** 切り替えアニメーションが落ち着いてから、修飾キー押下継続中ならスクロールモードへ復帰。 */
-    private fun scheduleScrollModeResume(@Suppress("UNUSED_PARAMETER") resumeScroll: Boolean) {
-        // オーバーレイが出ていたかに関わらず、修飾キーを押し続けていれば
-        // 遷移完了後にスクロール可能へ戻す（判定は Runnable 側で行う）
-        scheduleEnterScrollMode(RESUME_AFTER_SWITCH_DELAY_MS)
-    }
+    /** 切り替え後のスクロール復帰は不要になった（ボールが動けば自動で入るため）。 */
+    private fun scheduleScrollModeResume(@Suppress("UNUSED_PARAMETER") resumeScroll: Boolean) = Unit
 
     /**
      * アプリ切り替えの入口。画面下部のナビゲーションバーの高さで方式を選ぶ。
