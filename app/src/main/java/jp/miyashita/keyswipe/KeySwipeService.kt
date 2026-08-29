@@ -939,53 +939,59 @@ class KeySwipeService : AccessibilityService() {
         }
         val g = screenGeometry() ?: return
 
-        val found = mutableListOf<OverviewCard>()
-        val accept: (AccessibilityNodeInfo, Rect) -> Boolean = if (selectionIsDrawer) {
-            // ドロワー: アプリアイコン相当のクリック要素（実測: セルは約189x250）。
-            // 最小120pxは、1アイコンにつき余分に検出される99x99の重複ノード
-            // （通知ドット等）を除外するため。検索欄(横長)はサイズ上限で、
-            // タスクバーのアイコンは下端除外で弾く
-            val bottomLimit = g[1] - 240f
-            ({ node, b ->
-                node.isClickable && node.isVisibleToUser &&
-                    b.width() in 120..(g[0] * 0.3f).toInt() &&
-                    b.height() in 120..(g[1] * 0.3f).toInt() &&
-                    b.centerY() < bottomLimit
-            })
-        } else {
-            // Overview: 画面の18%超の大きなタスクカード
-            val minW = g[0] * 0.18f
-            val minH = g[1] * 0.18f
-            ({ node, b ->
-                node.isClickable && node.isVisibleToUser &&
-                    b.width() >= minW && b.height() >= minH
-            })
-        }
-
-        fun visit(node: AccessibilityNodeInfo?) {
-            node ?: return
-            val b = Rect()
-            node.getBoundsInScreen(b)
-            if (accept(node, b)) {
-                found += OverviewCard(node, b)
-            }
-            for (i in 0 until node.childCount) visit(node.getChild(i))
-        }
-        roots.forEach { visit(it) }
-
-        // 入れ子のクリック要素は大きい方（カード本体）だけ残す
-        val cards = found.filter { c ->
-            found.none { o -> o !== c && o.bounds.contains(c.bounds) }
-        }
         overviewCards = if (selectionIsDrawer) {
-            // ドロワー: 読み順（行ごとに上から下、行内は左から右）
-            val rowHeight = (g[1] * 0.1f).coerceAtLeast(1f)
-            cards.sortedWith(
+            // ドロワー: 専用コンテナ(apps_view)内の id=icon ノードだけをID指定で拾う。
+            // サイズや可視性のヒューリスティックでは、背後のホーム画面の
+            // アイコン等が構造的に混入して枠が暴れる（実測74件）ため。
+            val found = mutableListOf<OverviewCard>()
+            for (root in roots) {
+                val container = root.findAccessibilityNodeInfosByViewId(
+                    "$LAUNCHER_PACKAGE:id/apps_view"
+                )?.firstOrNull() ?: continue
+                fun visit(node: AccessibilityNodeInfo?) {
+                    node ?: return
+                    if (node.isClickable &&
+                        node.viewIdResourceName?.endsWith("/icon") == true
+                    ) {
+                        val b = Rect()
+                        node.getBoundsInScreen(b)
+                        if (b.width() >= 100 && b.height() >= 100) {
+                            found += OverviewCard(node, b)
+                        }
+                    }
+                    for (i in 0 until node.childCount) visit(node.getChild(i))
+                }
+                visit(container)
+                if (found.isNotEmpty()) break
+            }
+            // 読み順（行ごとに上から下、行内は左から右）
+            val rowHeight = (g[1] * 0.08f).coerceAtLeast(1f)
+            found.sortedWith(
                 compareBy<OverviewCard> { (it.bounds.centerY() / rowHeight).toInt() }
                     .thenBy { it.bounds.centerX() }
             )
         } else {
-            // Overview: 新しい順 = 右の列から左へ、同じ列は上から下
+            // Overview: 画面の18%超の大きなタスクカード
+            val minW = g[0] * 0.18f
+            val minH = g[1] * 0.18f
+            val found = mutableListOf<OverviewCard>()
+            fun visit(node: AccessibilityNodeInfo?) {
+                node ?: return
+                val b = Rect()
+                node.getBoundsInScreen(b)
+                if (node.isClickable && node.isVisibleToUser &&
+                    b.width() >= minW && b.height() >= minH
+                ) {
+                    found += OverviewCard(node, b)
+                }
+                for (i in 0 until node.childCount) visit(node.getChild(i))
+            }
+            roots.forEach { visit(it) }
+            // 入れ子のクリック要素は大きい方（カード本体）だけ残す
+            val cards = found.filter { c ->
+                found.none { o -> o !== c && o.bounds.contains(c.bounds) }
+            }
+            // 新しい順 = 右の列から左へ、同じ列は上から下
             val colWidth = (g[0] * 0.3f).coerceAtLeast(1f)
             cards.sortedWith(
                 compareByDescending<OverviewCard> { (it.bounds.centerX() / colWidth).toInt() }
