@@ -73,6 +73,8 @@ class KeySwipeService : AccessibilityService() {
         private const val RECENTS_DOUBLE_DELAY_MS = 350L
         // ホームに戻ってからドロワー用の上スワイプを打つまでの待ち
         private const val DRAWER_SWIPE_DELAY_MS = 450L
+        // ドロワーが開いてから青枠選択モードを開始するまでの待ち
+        private const val DRAWER_SELECT_DELAY_MS = 1200L
         // これ以上の高さのナビバーは固定タスクバーとみなす
         // （細いジェスチャーバーは~60px、Fold内側の固定タスクバーは136px: 実測）
         private const val TASKBAR_MIN_HEIGHT_PX = 100
@@ -352,6 +354,17 @@ class KeySwipeService : AccessibilityService() {
     private fun openAllApps() {
         performGlobalAction(GLOBAL_ACTION_HOME)
         mainHandler.postDelayed({ injectDrawerOpenSwipe() }, DRAWER_SWIPE_DELAY_MS)
+        // ランチャーのキーボードフォーカスは不安定（動く時と動かない時がある実測）
+        // なので頼らず、Overviewと同じ青枠選択モードでアイコンを操作する
+        mainHandler.postDelayed({
+            selectionIsDrawer = true
+            overviewMode = true
+            overviewScrolled = false
+            overviewCards = emptyList()
+            overviewIndex = 0
+            overviewOpenedAt = android.os.SystemClock.uptimeMillis()
+            moveOverviewSelection(0)
+        }, DRAWER_SELECT_DELAY_MS)
     }
 
     /** ホーム画面で上スワイプを注入してドロワーを開く。 */
@@ -545,6 +558,9 @@ class KeySwipeService : AccessibilityService() {
     private var overviewIndex = 0
     private var highlightView: HighlightView? = null
 
+    // 選択モードの対象: false=Overview(タスクカード) / true=ドロワー(アプリアイコン)
+    private var selectionIsDrawer = false
+
     private data class OverviewCard(val node: AccessibilityNodeInfo, val bounds: Rect)
 
     /**
@@ -566,6 +582,7 @@ class KeySwipeService : AccessibilityService() {
             Log.d(TAG, "openOverviewSelection: stale state, reopening")
         }
         Log.d(TAG, "openOverviewSelection")
+        selectionIsDrawer = false
         overviewOpenedAt = android.os.SystemClock.uptimeMillis()
         overviewMode = true
         overviewScrolled = false
@@ -616,7 +633,12 @@ class KeySwipeService : AccessibilityService() {
      * カードへ枠を移動する（直交方向のズレは重めに罰して直感的な隣を選ぶ）。
      * 横方向で候補が無い場合は端なのでページ送りに委譲する。
      */
-    private fun moveOverviewSelectionSpatial(dx: Int, dy: Int, attempts: Int = 4) {
+    private fun moveOverviewSelectionSpatial(
+        dx: Int,
+        dy: Int,
+        attempts: Int = 4,
+        allowPage: Boolean = true,
+    ) {
         if (overviewCards.isEmpty()) refreshOverviewCards()
         if (overviewCards.isEmpty()) {
             if (attempts > 0) {
@@ -654,8 +676,14 @@ class KeySwipeService : AccessibilityService() {
                 if (dx != 0) ddx + ddy * 3f else ddy + ddx * 3f
             }
         if (best == null) {
-            // 横の端に達した: ページ送りして続きへ（←=古い方=+1 / →=新しい方=-1）
-            if (dx != 0) scrollOverviewPageAndContinue(if (dx < 0) 1 else -1)
+            if (!allowPage) return
+            if (selectionIsDrawer) {
+                // ドロワー: 上下の端に達したら縦スクロールで続きの行を呼び込む
+                if (dy != 0) scrollDrawerPageAndContinue(dy)
+            } else {
+                // Overview: 横の端に達したらページ送り（←=古い方=+1 / →=新しい方=-1）
+                if (dx != 0) scrollOverviewPageAndContinue(if (dx < 0) 1 else -1)
+            }
             return
         }
         overviewIndex = best.index
@@ -663,6 +691,89 @@ class KeySwipeService : AccessibilityService() {
         showHighlight(overviewCards[overviewIndex].bounds)
         startHighlightTracking()
         Log.d(TAG, "overview spatial(dx=$dx,dy=$dy) -> $overviewIndex / ${overviewCards.size}")
+    }
+
+    /**
+     * ドロワーを縦にページ送りして続きの行を呼び込み、元の選択位置の
+     * 直下(直上)のアイコンを選び直す。dyDir=1で下方向。
+     */
+    private fun scrollDrawerPageAndContinue(dyDir: Int) {
+        if (gestureInFlight) return
+        val current = overviewCards.getOrNull(overviewIndex) ?: return
+        val key = cardKey(current)
+        val prevKeys = overviewCards.map { cardKey(it) }.toSet()
+        val prevCx = current.bounds.centerX()
+        val g = screenGeometry() ?: return
+
+        val x = g[0] / 2f
+        val y0 = g[1] * 0.55f
+        val y1 = (y0 - dyDir * g[1] * 0.35f).coerceIn(g[1] * 0.15f, g[1] * 0.85f)
+        val path = Path().apply {
+            moveTo(x, y0)
+            lineTo(x, y1)
+        }
+        val stroke = GestureDescription.StrokeDescription(path, 0, OVERVIEW_PAGE_SCROLL_MS, false)
+        gestureInFlight = true
+        Log.d(TAG, "scrollDrawerPage: dyDir=$dyDir key=$key")
+        val ok = dispatchGesture(buildGesture(stroke), object : GestureResultCallback() {
+            override fun onCompleted(gd: GestureDescription?) {
+                gestureInFlight = false
+                mainHandler.postDelayed(
+                    { reselectAfterDrawerScroll(dyDir, key, prevKeys, prevCx) },
+                    OVERVIEW_RESCAN_DELAY_MS
+                )
+            }
+
+            override fun onCancelled(gd: GestureDescription?) {
+                gestureInFlight = false
+                stopHighlightTracking()
+            }
+        }, null)
+        if (!ok) {
+            gestureInFlight = false
+            return
+        }
+        startHighlightTracking()
+    }
+
+    private fun reselectAfterDrawerScroll(dyDir: Int, key: String, prevKeys: Set<String>, prevCx: Int) {
+        if (!overviewMode) return
+        refreshOverviewCards()
+        if (overviewCards.isEmpty()) return
+        val prevIdx = if (key.isNotEmpty()) {
+            overviewCards.indexOfFirst { cardKey(it) == key }
+        } else -1
+        if (prevIdx >= 0) {
+            // 元のアイコンがまだ見えている: そこから改めて1歩進める（ページ再送はしない）
+            overviewIndex = prevIdx
+            moveOverviewSelectionSpatial(0, dyDir, allowPage = false)
+            scheduleFallbackHighlight()
+            return
+        }
+        // 元のアイコンが画面外に出た: 新しく現れた行の中で元のX位置に最も近いものを選ぶ
+        val newCards = overviewCards.withIndex().filter { cardKey(it.value) !in prevKeys }
+        val candidate = if (dyDir > 0) {
+            newCards.minByOrNull {
+                it.value.bounds.centerY() * 10000L + abs(it.value.bounds.centerX() - prevCx)
+            }
+        } else {
+            newCards.maxByOrNull {
+                it.value.bounds.centerY() * 10000L - abs(it.value.bounds.centerX() - prevCx)
+            }
+        }
+        overviewIndex = candidate?.index ?: if (dyDir > 0) overviewCards.lastIndex else 0
+        overviewScrolled = true
+        showHighlight(overviewCards[overviewIndex].bounds)
+        startHighlightTracking()
+        Log.d(TAG, "drawer reselect -> $overviewIndex / ${overviewCards.size} (prevIdx=$prevIdx)")
+    }
+
+    /** spatial移動が空振りしても枠が現在位置に出るよう保険をかける。 */
+    private fun scheduleFallbackHighlight() {
+        overviewCards.getOrNull(overviewIndex)?.let {
+            showHighlight(it.bounds)
+            startHighlightTracking()
+        }
     }
 
     private fun cardKey(card: OverviewCard): String = findDescription(card.node, 0) ?: ""
@@ -794,15 +905,30 @@ class KeySwipeService : AccessibilityService() {
             return
         }
         val g = screenGeometry() ?: return
-        val minW = g[0] * 0.18f
-        val minH = g[1] * 0.18f
 
         val found = mutableListOf<OverviewCard>()
+        val accept: (AccessibilityNodeInfo, Rect) -> Boolean = if (selectionIsDrawer) {
+            // ドロワー: アプリアイコン相当の小さめクリック要素。
+            // 検索欄(横長)はサイズ上限で、タスクバーのアイコンは下端除外で弾く
+            val bottomLimit = g[1] - 240f
+            ({ node, b ->
+                node.isClickable &&
+                    b.width() in 80..(g[0] * 0.3f).toInt() &&
+                    b.height() in 80..(g[1] * 0.3f).toInt() &&
+                    b.centerY() < bottomLimit
+            })
+        } else {
+            // Overview: 画面の18%超の大きなタスクカード
+            val minW = g[0] * 0.18f
+            val minH = g[1] * 0.18f
+            ({ node, b -> node.isClickable && b.width() >= minW && b.height() >= minH })
+        }
+
         fun visit(node: AccessibilityNodeInfo?) {
             node ?: return
             val b = Rect()
             node.getBoundsInScreen(b)
-            if (node.isClickable && b.width() >= minW && b.height() >= minH) {
+            if (accept(node, b)) {
                 found += OverviewCard(node, b)
             }
             for (i in 0 until node.childCount) visit(node.getChild(i))
@@ -813,15 +939,24 @@ class KeySwipeService : AccessibilityService() {
         val cards = found.filter { c ->
             found.none { o -> o !== c && o.bounds.contains(c.bounds) }
         }
-        // 新しい順 = 右の列から左へ、同じ列は上から下（グリッド想定。カルーセルでも右→左）
-        val colWidth = (g[0] * 0.3f).coerceAtLeast(1f)
-        overviewCards = cards.sortedWith(
-            compareByDescending<OverviewCard> { (it.bounds.centerX() / colWidth).toInt() }
-                .thenBy { it.bounds.centerY() }
-        )
+        overviewCards = if (selectionIsDrawer) {
+            // ドロワー: 読み順（行ごとに上から下、行内は左から右）
+            val rowHeight = (g[1] * 0.1f).coerceAtLeast(1f)
+            cards.sortedWith(
+                compareBy<OverviewCard> { (it.bounds.centerY() / rowHeight).toInt() }
+                    .thenBy { it.bounds.centerX() }
+            )
+        } else {
+            // Overview: 新しい順 = 右の列から左へ、同じ列は上から下
+            val colWidth = (g[0] * 0.3f).coerceAtLeast(1f)
+            cards.sortedWith(
+                compareByDescending<OverviewCard> { (it.bounds.centerX() / colWidth).toInt() }
+                    .thenBy { it.bounds.centerY() }
+            )
+        }
         overviewIndex = 0
-        Log.d(TAG, "refreshOverviewCards: ${overviewCards.size} cards " +
-                overviewCards.joinToString { it.bounds.toShortString() })
+        Log.d(TAG, "refreshOverviewCards: drawer=$selectionIsDrawer ${overviewCards.size} cards " +
+                overviewCards.take(8).joinToString { it.bounds.toShortString() })
     }
 
     /** Enter確定: 選択中のカードをクリックして、そのアプリへ遷移する。 */
