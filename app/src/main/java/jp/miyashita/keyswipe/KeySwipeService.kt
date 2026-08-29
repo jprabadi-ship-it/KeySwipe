@@ -82,6 +82,8 @@ class KeySwipeService : AccessibilityService() {
         // 追跡中のカードが画面外へ出ないよう1列ぶんだけ送る
         private const val OVERVIEW_PAGE_SCROLL_RATIO = 0.38f
         private const val OVERVIEW_RESCAN_DELAY_MS = 180L  // ページ送り後の再検出待ち
+        // 指を離す前の静止時間。これが無いとフリング扱いで行き過ぎる
+        private const val DRAG_SETTLE_HOLD_MS = 90L
         // 一覧を開いた直後は、元アプリ等のウィンドウイベントが飛び交うため
         // この間は「一覧が閉じた」判定をしない
         private const val OVERVIEW_OPEN_GRACE_MS = 800L
@@ -888,24 +890,13 @@ class KeySwipeService : AccessibilityService() {
 
         val sx = w / 2f
         val sy = h / 2f
-        val path = Path().apply {
-            moveTo(sx, sy)
-            lineTo(sx + dragX, sy + dragY)
-        }
-        val stroke = GestureDescription.StrokeDescription(path, 0, 100L, false)
         gestureInFlight = true
         Log.d(TAG, "nudgeSelectedIntoView: dragX=$dragX dragY=$dragY")
-        val ok = dispatchGesture(buildGesture(stroke), object : GestureResultCallback() {
-            override fun onCompleted(gd: GestureDescription?) {
-                gestureInFlight = false
-                // 寄せた後の正確な座標で地図と枠を合わせ直す
-                mainHandler.postDelayed({ rescanKeepingSelection() }, 180L)
-            }
-
-            override fun onCancelled(gd: GestureDescription?) {
-                gestureInFlight = false
-            }
-        }, null)
+        val ok = dispatchDragNoFling(sx, sy, sx + dragX, sy + dragY, 120L) {
+            gestureInFlight = false
+            // 寄せた後の正確な座標で地図と枠を合わせ直す
+            mainHandler.postDelayed({ rescanKeepingSelection() }, 180L)
+        }
         if (!ok) gestureInFlight = false
         startHighlightTracking()
     }
@@ -925,27 +916,15 @@ class KeySwipeService : AccessibilityService() {
         val x = g[0] / 2f
         val y0 = g[1] * 0.55f
         val y1 = (y0 - dyDir * g[1] * 0.35f).coerceIn(g[1] * 0.15f, g[1] * 0.85f)
-        val path = Path().apply {
-            moveTo(x, y0)
-            lineTo(x, y1)
-        }
-        val stroke = GestureDescription.StrokeDescription(path, 0, OVERVIEW_PAGE_SCROLL_MS, false)
         gestureInFlight = true
         Log.d(TAG, "scrollDrawerPage: dyDir=$dyDir key=$key")
-        val ok = dispatchGesture(buildGesture(stroke), object : GestureResultCallback() {
-            override fun onCompleted(gd: GestureDescription?) {
-                gestureInFlight = false
-                mainHandler.postDelayed(
-                    { reselectAfterDrawerScroll(dyDir, key, prevKeys, prevCx) },
-                    OVERVIEW_RESCAN_DELAY_MS
-                )
-            }
-
-            override fun onCancelled(gd: GestureDescription?) {
-                gestureInFlight = false
-                stopHighlightTracking()
-            }
-        }, null)
+        val ok = dispatchDragNoFling(x, y0, x, y1, OVERVIEW_PAGE_SCROLL_MS) {
+            gestureInFlight = false
+            mainHandler.postDelayed(
+                { reselectAfterDrawerScroll(dyDir, key, prevKeys, prevCx) },
+                OVERVIEW_RESCAN_DELAY_MS
+            )
+        }
         if (!ok) {
             gestureInFlight = false
             return
@@ -1057,27 +1036,15 @@ class KeySwipeService : AccessibilityService() {
         val startX = w / 2f
         val endX = (startX + dir * w * OVERVIEW_PAGE_SCROLL_RATIO)
             .coerceIn(w * 0.05f, w * 0.95f)
-        val path = Path().apply {
-            moveTo(startX, y)
-            lineTo(endX, y)
-        }
-        val stroke = GestureDescription.StrokeDescription(path, 0, OVERVIEW_PAGE_SCROLL_MS, false)
         gestureInFlight = true
         Log.d(TAG, "scrollOverviewPage: delta=$delta key=$key")
-        val ok = dispatchGesture(buildGesture(stroke), object : GestureResultCallback() {
-            override fun onCompleted(gd: GestureDescription?) {
-                gestureInFlight = false
-                mainHandler.postDelayed(
-                    { reselectAfterPageScroll(delta, key, prevKeys, prevCy) },
-                    OVERVIEW_RESCAN_DELAY_MS
-                )
-            }
-
-            override fun onCancelled(gd: GestureDescription?) {
-                gestureInFlight = false
-                stopHighlightTracking()
-            }
-        }, null)
+        val ok = dispatchDragNoFling(startX, y, endX, y, OVERVIEW_PAGE_SCROLL_MS) {
+            gestureInFlight = false
+            mainHandler.postDelayed(
+                { reselectAfterPageScroll(delta, key, prevKeys, prevCy) },
+                OVERVIEW_RESCAN_DELAY_MS
+            )
+        }
         if (!ok) {
             gestureInFlight = false
             return
@@ -1401,6 +1368,36 @@ class KeySwipeService : AccessibilityService() {
                 done("quick-switch swipe cancelled (seg1)")
         }, null)
         if (!dispatched) gestureInFlight = false
+    }
+
+    /**
+     * フリング（慣性で行き過ぎる）を起こさないドラッグを注入する。
+     * 指を離す前に終点で静止させて速度をゼロにするのがポイント
+     * （速い単発ドラッグはランチャー側でフリング判定され、1列ぶんの
+     * つもりが数列送られてしまう）。
+     */
+    private fun dispatchDragNoFling(
+        sx: Float, sy: Float, ex: Float, ey: Float, durationMs: Long,
+        onDone: (() -> Unit)? = null,
+    ): Boolean {
+        val path1 = Path().apply {
+            moveTo(sx, sy)
+            lineTo(ex, ey)
+        }
+        val stroke1 = GestureDescription.StrokeDescription(path1, 0, durationMs, true)
+        return dispatchGesture(buildGesture(stroke1), object : GestureResultCallback() {
+            override fun onCompleted(gd: GestureDescription?) {
+                val hold = Path().apply { moveTo(ex, ey) }
+                val stroke2 = stroke1.continueStroke(hold, 0, DRAG_SETTLE_HOLD_MS, false)
+                val ok = dispatchGesture(buildGesture(stroke2), object : GestureResultCallback() {
+                    override fun onCompleted(g2: GestureDescription?) { onDone?.invoke() }
+                    override fun onCancelled(g2: GestureDescription?) { onDone?.invoke() }
+                }, null)
+                if (!ok) onDone?.invoke()
+            }
+
+            override fun onCancelled(gd: GestureDescription?) { onDone?.invoke() }
+        }, null)
     }
 
     private fun buildGesture(stroke: GestureDescription.StrokeDescription): GestureDescription =
