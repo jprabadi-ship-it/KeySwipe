@@ -77,13 +77,13 @@ class KeySwipeService : AccessibilityService() {
 
         // --- アプリ一覧で止まって選ぶ方式 ---
         private const val LAUNCHER_PACKAGE = "com.google.android.apps.nexuslauncher"
-        private const val OVERVIEW_PAGE_SCROLL_MS = 150L   // 端に達したときのページ送りドラッグ
+        private const val OVERVIEW_PAGE_SCROLL_MS = 120L   // 端に達したときのページ送りドラッグ
         // ページ送りの距離。グリッドの1列ピッチ(実測806px/2152px≒0.375)に合わせ、
         // 追跡中のカードが画面外へ出ないよう1列ぶんだけ送る
         private const val OVERVIEW_PAGE_SCROLL_RATIO = 0.38f
         private const val OVERVIEW_RESCAN_DELAY_MS = 180L  // ページ送り後の再検出待ち
         // 指を離す前の静止時間。これが無いとフリング扱いで行き過ぎる
-        private const val DRAG_SETTLE_HOLD_MS = 90L
+        private const val DRAG_SETTLE_HOLD_MS = 70L
         // 一覧を開いた直後は、元アプリ等のウィンドウイベントが飛び交うため
         // この間は「一覧が閉じた」判定をしない
         private const val OVERVIEW_OPEN_GRACE_MS = 800L
@@ -943,10 +943,7 @@ class KeySwipeService : AccessibilityService() {
         Log.d(TAG, "scrollDrawerPage: dyDir=$dyDir key=$key")
         val ok = dispatchDragNoFling(x, y0, x, y1, OVERVIEW_PAGE_SCROLL_MS) {
             gestureInFlight = false
-            mainHandler.postDelayed(
-                { reselectAfterDrawerScroll(dyDir, key, prevKeys, prevCx) },
-                OVERVIEW_RESCAN_DELAY_MS
-            )
+            pollAfterDrawerScroll(dyDir, key, prevKeys, prevCx, tries = 12)
         }
         if (!ok) {
             gestureInFlight = false
@@ -955,9 +952,37 @@ class KeySwipeService : AccessibilityService() {
         startHighlightTracking()
     }
 
-    private fun reselectAfterDrawerScroll(dyDir: Int, key: String, prevKeys: Set<String>, prevCx: Int) {
+    /** ドロワーの縦送り後、顔ぶれが変わった瞬間に選び直す。 */
+    private fun pollAfterDrawerScroll(
+        dyDir: Int,
+        key: String,
+        prevKeys: Set<String>,
+        prevCx: Int,
+        tries: Int,
+    ) {
         if (!overviewMode) return
         refreshOverviewCards()
+        val now = overviewCards.map { cardKey(it) }.toSet()
+        if (now.isNotEmpty() && (now != prevKeys || tries <= 0)) {
+            reselectAfterDrawerScroll(dyDir, key, prevKeys, prevCx, alreadyScanned = true)
+            return
+        }
+        if (tries > 0) {
+            mainHandler.postDelayed(
+                { pollAfterDrawerScroll(dyDir, key, prevKeys, prevCx, tries - 1) }, 60L
+            )
+        }
+    }
+
+    private fun reselectAfterDrawerScroll(
+        dyDir: Int,
+        key: String,
+        prevKeys: Set<String>,
+        prevCx: Int,
+        alreadyScanned: Boolean = false,
+    ) {
+        if (!overviewMode) return
+        if (!alreadyScanned) refreshOverviewCards()
         if (overviewCards.isEmpty()) return
         val prevIdx = if (key.isNotEmpty()) {
             overviewCards.indexOfFirst { cardKey(it) == key }
@@ -1102,10 +1127,8 @@ class KeySwipeService : AccessibilityService() {
         Log.d(TAG, "scrollOverviewPage: delta=$delta key=$key")
         val ok = dispatchDragNoFling(startX, y, endX, y, OVERVIEW_PAGE_SCROLL_MS) {
             gestureInFlight = false
-            mainHandler.postDelayed(
-                { reselectAfterPageScroll(delta, key, prevKeys, prevCy) },
-                OVERVIEW_RESCAN_DELAY_MS
-            )
+            // 固定待ちではなく、カードの顔ぶれが変わった瞬間に選び直す
+            pollAfterPageScroll(delta, key, prevKeys, prevCy, tries = 12)
         }
         if (!ok) {
             gestureInFlight = false
@@ -1115,14 +1138,37 @@ class KeySwipeService : AccessibilityService() {
         startHighlightTracking()
     }
 
+    /** ページ送り後、カードの顔ぶれが変わった瞬間に選び直す（60ms間隔）。 */
+    private fun pollAfterPageScroll(
+        delta: Int,
+        key: String,
+        prevKeys: Set<String>,
+        prevCy: Int,
+        tries: Int,
+    ) {
+        if (!overviewMode) return
+        refreshOverviewCards()
+        val now = overviewCards.map { cardKey(it) }.toSet()
+        if (now.isNotEmpty() && (now != prevKeys || tries <= 0)) {
+            reselectAfterPageScroll(delta, key, prevKeys, prevCy, alreadyScanned = true)
+            return
+        }
+        if (tries > 0) {
+            mainHandler.postDelayed(
+                { pollAfterPageScroll(delta, key, prevKeys, prevCy, tries - 1) }, 60L
+            )
+        }
+    }
+
     private fun reselectAfterPageScroll(
         delta: Int,
         key: String,
         prevKeys: Set<String>,
         prevCy: Int,
+        alreadyScanned: Boolean = false,
     ) {
         if (!overviewMode) return
-        refreshOverviewCards()
+        if (!alreadyScanned) refreshOverviewCards()
         if (overviewCards.isEmpty()) return
         val prevIdx = if (key.isNotEmpty()) {
             overviewCards.indexOfFirst { cardKey(it) == key }
