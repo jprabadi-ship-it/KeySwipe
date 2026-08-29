@@ -257,6 +257,8 @@ class KeySwipeService : AccessibilityService() {
                 KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT,
                 KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN -> {
                     if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
+                        Log.d(TAG, "arrow input latency=" +
+                                "${android.os.SystemClock.uptimeMillis() - event.eventTime}ms")
                         val dx = when (event.keyCode) {
                             KeyEvent.KEYCODE_DPAD_LEFT -> -1
                             KeyEvent.KEYCODE_DPAD_RIGHT -> 1
@@ -804,11 +806,18 @@ class KeySwipeService : AccessibilityService() {
         return null
     }
 
-    // ページ送りアニメーション中、選択中カードに枠を追従させるためのポーリング
+    // 移動・ページ送り直後の短時間だけ、選択中カードに枠を追従させるポーリング。
+    // node.refresh()は同期IPCでメインスレッドを塞ぐため、常時実行はキー処理の
+    // 遅延源になる。位置が落ち着く時間(約0.6秒)だけ回して自動停止する。
     private var highlightTracking = false
+    private var highlightTrackTicksLeft = 0
     private val highlightTrackRunnable = object : Runnable {
         override fun run() {
-            if (!highlightTracking || !overviewMode) return
+            if (!highlightTracking || !overviewMode || highlightTrackTicksLeft <= 0) {
+                highlightTracking = false
+                return
+            }
+            highlightTrackTicksLeft--
             val node = overviewCards.getOrNull(overviewIndex)?.node
             if (node != null && node.refresh()) {
                 val b = Rect()
@@ -820,6 +829,7 @@ class KeySwipeService : AccessibilityService() {
     }
 
     private fun startHighlightTracking() {
+        highlightTrackTicksLeft = 8   // 約0.64秒で自動停止
         if (highlightTracking) return
         highlightTracking = true
         mainHandler.post(highlightTrackRunnable)
