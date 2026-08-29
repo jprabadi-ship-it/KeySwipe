@@ -778,12 +778,51 @@ class KeySwipeService : AccessibilityService() {
         Log.d(TAG, "rescanKeepingSelection: $before -> ${overviewCards.size} cards, idx=$overviewIndex")
     }
 
+    // ジェスチャー(送り/寄せ)や座標補正の最中に押された矢印は、捨てずに
+    // キューへ入れて完了後に反映する。捨てると「押しても動かない」体感になり、
+    // 実行中の古い座標で動かすと枠が変な場所へ飛ぶため。
+    private var queuedDx = 0
+    private var queuedDy = 0
+    private var hasQueuedMove = false
+    private var rescanPending = false
+
+    private val selectionBusy: Boolean
+        get() = gestureInFlight || rescanPending
+
+    private fun flushQueuedMove() {
+        if (!hasQueuedMove || !overviewMode) return
+        hasQueuedMove = false
+        val dx = queuedDx
+        val dy = queuedDy
+        mainHandler.post { moveOverviewSelectionSpatial(dx, dy) }
+    }
+
+    /** 完了後にキューを流すための補正スキャン予約。 */
+    private fun scheduleRescanThenFlush(delayMs: Long) {
+        rescanPending = true
+        mainHandler.postDelayed({
+            rescanPending = false
+            if (overviewMode) {
+                rescanKeepingSelection()
+                flushQueuedMove()
+            }
+        }, delayMs)
+    }
+
     private fun moveOverviewSelectionSpatial(
         dx: Int,
         dy: Int,
         attempts: Int = 4,
         allowPage: Boolean = true,
+        queueIfBusy: Boolean = true,
     ) {
+        if (queueIfBusy && selectionBusy) {
+            queuedDx = dx
+            queuedDy = dy
+            hasQueuedMove = true
+            Log.d(TAG, "queued move dx=$dx dy=$dy (busy)")
+            return
+        }
         // 地図が古くなっていたら（手でスクロールされた等）操作前に更新
         if (overviewCards.isNotEmpty() &&
             android.os.SystemClock.uptimeMillis() - lastCardScanAt > 3000L
@@ -894,8 +933,8 @@ class KeySwipeService : AccessibilityService() {
         Log.d(TAG, "nudgeSelectedIntoView: dragX=$dragX dragY=$dragY")
         val ok = dispatchDragNoFling(sx, sy, sx + dragX, sy + dragY, 120L) {
             gestureInFlight = false
-            // 寄せた後の正確な座標で地図と枠を合わせ直す
-            mainHandler.postDelayed({ rescanKeepingSelection() }, 180L)
+            // 寄せた後の正確な座標で地図と枠を合わせ直してからキューを流す
+            scheduleRescanThenFlush(180L)
         }
         if (!ok) gestureInFlight = false
         startHighlightTracking()
@@ -942,8 +981,9 @@ class KeySwipeService : AccessibilityService() {
         if (prevIdx >= 0) {
             // 元のアイコンがまだ見えている: そこから改めて1歩進める（ページ再送はしない）
             overviewIndex = prevIdx
-            moveOverviewSelectionSpatial(0, dyDir, allowPage = false)
+            moveOverviewSelectionSpatial(0, dyDir, allowPage = false, queueIfBusy = false)
             scheduleFallbackHighlight()
+            scheduleRescanThenFlush(180L)
             return
         }
         // 元のアイコンが画面外に出た: 新しく現れた行の中で元のX位置に最も近いものを選ぶ
@@ -962,6 +1002,7 @@ class KeySwipeService : AccessibilityService() {
         showHighlight(overviewCards[overviewIndex].bounds)
         startHighlightTracking()
         Log.d(TAG, "drawer reselect -> $overviewIndex / ${overviewCards.size} (prevIdx=$prevIdx)")
+        scheduleRescanThenFlush(180L)
     }
 
     /** spatial移動が空振りしても枠が現在位置に出るよう保険をかける。 */
@@ -1072,11 +1113,9 @@ class KeySwipeService : AccessibilityService() {
             // インデックス±1だと2行グリッドで「同じ列の別の行」に飛び、
             // 上下が入れ替わってしまうため（実測）
             overviewIndex = prevIdx
-            moveOverviewSelectionSpatial(dx, 0, allowPage = false)
+            moveOverviewSelectionSpatial(dx, 0, allowPage = false, queueIfBusy = false)
             scheduleFallbackHighlight()
-            mainHandler.postDelayed({
-                if (overviewMode && !selectionIsDrawer) rescanKeepingSelection()
-            }, 200L)
+            scheduleRescanThenFlush(200L)
             return
         }
         // 元のカードが画面外に出た: 新しく現れたカードのうち、元と同じ行
@@ -1096,9 +1135,7 @@ class KeySwipeService : AccessibilityService() {
         startHighlightTracking()
         Log.d(TAG, "overview reselect -> $overviewIndex / ${overviewCards.size} (prevIdx=$prevIdx)")
         // ページ送りアニメーション終了後の正確な座標で地図と枠を補正する
-        mainHandler.postDelayed({
-            if (overviewMode && !selectionIsDrawer) rescanKeepingSelection()
-        }, 200L)
+        scheduleRescanThenFlush(200L)
     }
 
     /**
