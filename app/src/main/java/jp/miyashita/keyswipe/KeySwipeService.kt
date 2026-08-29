@@ -211,15 +211,59 @@ class KeySwipeService : AccessibilityService() {
         // ランチャー(アプリ一覧)以外の「実アプリ」が前面に来たら選択モードを終える
         // （手動でカードをタップした・ホームに戻った・コミット完了した等）。
         // IME・システムUI・自分自身のウィンドウイベントはアプリ切り替えではない。
-        if (overviewMode && pkg != LAUNCHER_PACKAGE && pkg != packageName &&
+        if (!overviewMode) return
+        if (pkg != LAUNCHER_PACKAGE && pkg != packageName &&
             pkg != imePackage && pkg != "com.android.systemui" &&
             android.os.SystemClock.uptimeMillis() - overviewOpenedAt > OVERVIEW_OPEN_GRACE_MS
         ) {
             Log.d(TAG, "overviewMode cleared by window change: $pkg")
-            overviewMode = false
-            overviewCards = emptyList()
-            stopHighlightTracking()
-            hideHighlight()
+            exitSelectionMode()
+        } else if (pkg == LAUNCHER_PACKAGE) {
+            // ランチャー内での画面遷移（一覧/ドロワーを閉じてホームへ戻った等）。
+            // 対象コンテナが消えていれば選択モードを終える
+            scheduleSelectionVerify()
+        }
+    }
+
+    /** 選択モードを終了し、青枠と関連タイマーを片付ける。 */
+    private fun exitSelectionMode() {
+        overviewMode = false
+        overviewCards = emptyList()
+        stopHighlightTracking()
+        hideHighlight()
+        mainHandler.removeCallbacks(stabilizeRunnable)
+        mainHandler.removeCallbacks(verifySelectionRunnable)
+        emptyVerifyCount = 0
+    }
+
+    // 選択対象がまだ画面にあるかの確認（ページ送り中の一時的な空振りで
+    // 誤終了しないよう、2回連続で空だったときだけ終了する）
+    private var emptyVerifyCount = 0
+    private val verifySelectionRunnable = Runnable { verifySelectionStillValid() }
+
+    private fun scheduleSelectionVerify() {
+        mainHandler.removeCallbacks(verifySelectionRunnable)
+        mainHandler.postDelayed(verifySelectionRunnable, 250L)
+    }
+
+    private fun verifySelectionStillValid() {
+        if (!overviewMode) return
+        // 開いている最中は判定を先送り
+        if (android.os.SystemClock.uptimeMillis() - overviewOpenedAt < OVERVIEW_OPEN_GRACE_MS) {
+            scheduleSelectionVerify()
+            return
+        }
+        refreshOverviewCards()
+        if (overviewCards.isEmpty()) {
+            emptyVerifyCount++
+            if (emptyVerifyCount >= 2) {
+                Log.d(TAG, "selection ended: target container is gone")
+                exitSelectionMode()
+            } else {
+                scheduleSelectionVerify()
+            }
+        } else {
+            emptyVerifyCount = 0
         }
     }
 
@@ -273,6 +317,11 @@ class KeySwipeService : AccessibilityService() {
                         commitOverviewSelection()
                     }
                     return true
+                }
+                KeyEvent.KEYCODE_ESCAPE, KeyEvent.KEYCODE_BACK -> {
+                    // 選択をやめる。キー自体は消費せず、一覧/ドロワーも閉じさせる
+                    if (event.action == KeyEvent.ACTION_DOWN) exitSelectionMode()
+                    return false
                 }
             }
         }
