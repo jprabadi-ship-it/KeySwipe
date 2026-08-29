@@ -368,6 +368,11 @@ class KeySwipeService : AccessibilityService() {
         mainHandler.postDelayed({
             if (overviewMode && selectionIsDrawer) moveOverviewSelection(0, attempts = 6)
         }, DRAWER_SELECT_DELAY_MS)
+        // 開くアニメーション中の初回スキャンは行が欠けることがあるため、
+        // 落ち着いた頃に完全な地図へ差し替える
+        mainHandler.postDelayed({
+            if (overviewMode && selectionIsDrawer) rescanKeepingSelection()
+        }, DRAWER_SELECT_DELAY_MS + 700L)
     }
 
     /** ホーム画面で上スワイプを注入してドロワーを開く。 */
@@ -641,12 +646,36 @@ class KeySwipeService : AccessibilityService() {
     private var pendingSpatialDy = 0
     private var spatialRetryScheduled = false
 
+    // 最後にカード検出した時刻。開くアニメーション中の不完全なスキャン結果や
+    // 古くなった地図を使い続けないための再スキャン判定に使う
+    private var lastCardScanAt = 0L
+
+    /** 現在の選択をアプリ名で保ったまま検出し直す（不完全な地図の差し替え）。 */
+    private fun rescanKeepingSelection() {
+        if (!overviewMode) return
+        val key = overviewCards.getOrNull(overviewIndex)?.let { cardKey(it) } ?: ""
+        val before = overviewCards.size
+        refreshOverviewCards()
+        if (overviewCards.isEmpty()) return
+        val idx = if (key.isNotEmpty()) overviewCards.indexOfFirst { cardKey(it) == key } else -1
+        overviewIndex = if (idx >= 0) idx else 0
+        showHighlight(overviewCards[overviewIndex].bounds)
+        startHighlightTracking()
+        Log.d(TAG, "rescanKeepingSelection: $before -> ${overviewCards.size} cards, idx=$overviewIndex")
+    }
+
     private fun moveOverviewSelectionSpatial(
         dx: Int,
         dy: Int,
         attempts: Int = 4,
         allowPage: Boolean = true,
     ) {
+        // ドロワーで地図が古くなっていたら（手でスクロールされた等）操作前に更新
+        if (selectionIsDrawer && overviewCards.isNotEmpty() &&
+            android.os.SystemClock.uptimeMillis() - lastCardScanAt > 3000L
+        ) {
+            rescanKeepingSelection()
+        }
         if (overviewCards.isEmpty()) refreshOverviewCards()
         if (overviewCards.isEmpty()) {
             if (attempts > 0) {
@@ -999,6 +1028,9 @@ class KeySwipeService : AccessibilityService() {
             )
         }
         overviewIndex = 0
+        if (overviewCards.isNotEmpty()) {
+            lastCardScanAt = android.os.SystemClock.uptimeMillis()
+        }
         Log.d(TAG, "refreshOverviewCards: drawer=$selectionIsDrawer ${overviewCards.size} cards " +
                 overviewCards.take(8).joinToString { it.bounds.toShortString() })
     }
