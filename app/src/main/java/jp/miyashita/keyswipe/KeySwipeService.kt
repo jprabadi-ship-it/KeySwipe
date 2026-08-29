@@ -987,6 +987,7 @@ class KeySwipeService : AccessibilityService() {
         val current = overviewCards.getOrNull(overviewIndex) ?: return
         val key = cardKey(current)
         val prevKeys = overviewCards.map { cardKey(it) }.toSet()
+        val prevCy = current.bounds.centerY()
         val g = screenGeometry() ?: return
         val w = g[0]
 
@@ -1006,7 +1007,7 @@ class KeySwipeService : AccessibilityService() {
             override fun onCompleted(gd: GestureDescription?) {
                 gestureInFlight = false
                 mainHandler.postDelayed(
-                    { reselectAfterPageScroll(delta, key, prevKeys) },
+                    { reselectAfterPageScroll(delta, key, prevKeys, prevCy) },
                     OVERVIEW_RESCAN_DELAY_MS
                 )
             }
@@ -1024,22 +1025,43 @@ class KeySwipeService : AccessibilityService() {
         startHighlightTracking()
     }
 
-    private fun reselectAfterPageScroll(delta: Int, key: String, prevKeys: Set<String>) {
+    private fun reselectAfterPageScroll(
+        delta: Int,
+        key: String,
+        prevKeys: Set<String>,
+        prevCy: Int,
+    ) {
         if (!overviewMode) return
         refreshOverviewCards()
         if (overviewCards.isEmpty()) return
         val prevIdx = if (key.isNotEmpty()) {
             overviewCards.indexOfFirst { cardKey(it) == key }
         } else -1
-        // 追跡カードが画面外に出て照合できなかった場合は、
-        // 「送りで新しく現れたカード」のうち元の選択に隣接する側を選ぶ
-        val newIdxs = overviewCards.indices.filter { cardKey(overviewCards[it]) !in prevKeys }
+        // delta=+1 は古い方(画面左)へ、-1 は新しい方(画面右)へ
+        val dx = -delta
+        if (prevIdx >= 0) {
+            // 元のカードが見えている: そこから座標ベースで1歩進める。
+            // インデックス±1だと2行グリッドで「同じ列の別の行」に飛び、
+            // 上下が入れ替わってしまうため（実測）
+            overviewIndex = prevIdx
+            moveOverviewSelectionSpatial(dx, 0, allowPage = false)
+            scheduleFallbackHighlight()
+            mainHandler.postDelayed({
+                if (overviewMode && !selectionIsDrawer) rescanKeepingSelection()
+            }, 350L)
+            return
+        }
+        // 元のカードが画面外に出た: 新しく現れたカードのうち、元と同じ行
+        // （centerYが近い）で進行方向の手前にあるものを選ぶ
+        val newCards = overviewCards.withIndex().filter { cardKey(it.value) !in prevKeys }
+        val rowTol = (overviewCards.maxOf { it.bounds.height() } / 2)
+        val sameRow = newCards.filter { abs(it.value.bounds.centerY() - prevCy) <= rowTol }
+        val pool = if (sameRow.isNotEmpty()) sameRow else newCards
         overviewIndex = when {
-            prevIdx >= 0 -> (prevIdx + delta).coerceIn(0, overviewCards.lastIndex)
-            newIdxs.isNotEmpty() && delta > 0 -> newIdxs.min()  // 古い方へ: 新出の中で最も新しい側
-            newIdxs.isNotEmpty() -> newIdxs.max()               // 新しい方へ: 新出の中で最も古い側
-            delta > 0 -> overviewCards.lastIndex
-            else -> 0
+            pool.isEmpty() -> if (delta > 0) overviewCards.lastIndex else 0
+            // 古い方へ進む = 新出のうち最も右(新しい側)から入る
+            delta > 0 -> pool.maxByOrNull { it.value.bounds.centerX() }!!.index
+            else -> pool.minByOrNull { it.value.bounds.centerX() }!!.index
         }
         overviewScrolled = true
         showHighlight(overviewCards[overviewIndex].bounds)
