@@ -256,8 +256,7 @@ class KeySwipeService : AccessibilityService() {
             when (event.keyCode) {
                 KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT,
                 KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN -> {
-                    // 長押しのオートリピートも受け付けて連続移動できるようにする
-                    if (event.action == KeyEvent.ACTION_DOWN) {
+                    if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
                         val dx = when (event.keyCode) {
                             KeyEvent.KEYCODE_DPAD_LEFT -> -1
                             KeyEvent.KEYCODE_DPAD_RIGHT -> 1
@@ -635,6 +634,11 @@ class KeySwipeService : AccessibilityService() {
      * カードへ枠を移動する（直交方向のズレは重めに罰して直感的な隣を選ぶ）。
      * 横方向で候補が無い場合は端なのでページ送りに委譲する。
      */
+    // カード未検出時のリトライは連鎖を量産しないよう「最後の入力1つ」だけ保持する
+    private var pendingSpatialDx = 0
+    private var pendingSpatialDy = 0
+    private var spatialRetryScheduled = false
+
     private fun moveOverviewSelectionSpatial(
         dx: Int,
         dy: Int,
@@ -644,9 +648,19 @@ class KeySwipeService : AccessibilityService() {
         if (overviewCards.isEmpty()) refreshOverviewCards()
         if (overviewCards.isEmpty()) {
             if (attempts > 0) {
-                mainHandler.postDelayed({
-                    if (overviewMode) moveOverviewSelectionSpatial(dx, dy, attempts - 1)
-                }, 250L)
+                pendingSpatialDx = dx
+                pendingSpatialDy = dy
+                if (!spatialRetryScheduled) {
+                    spatialRetryScheduled = true
+                    mainHandler.postDelayed({
+                        spatialRetryScheduled = false
+                        if (overviewMode) {
+                            moveOverviewSelectionSpatial(
+                                pendingSpatialDx, pendingSpatialDy, attempts - 1
+                            )
+                        }
+                    }, 250L)
+                }
             } else {
                 Log.w(TAG, "moveOverviewSelectionSpatial: no cards found, resetting")
                 overviewMode = false
