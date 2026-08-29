@@ -60,7 +60,10 @@ class KeySwipeService : AccessibilityService() {
         // タップと判定され、広告などをクリックしてしまうため必ず上回らせる。
         private const val SCROLL_START_THRESHOLD_PX = 40f
         private const val SCROLL_STROKE_DURATION_MS = 50L
-        private const val SCROLL_END_DURATION_MS = 10L
+        // 指を離す前の静止ホールド。短いと直前の移動速度が残って
+        // フリング（離した後に少し流れる）と判定されるため、
+        // アプリ側の速度計算窓(約100ms)ぶん静止してから離す
+        private const val SCROLL_END_DURATION_MS = 100L
         private const val EDGE_MARGIN_RATIO = 0.12f     // 端ジェスチャー誤爆回避の安全マージン
         // オーバーレイ除去がシステムに反映されるのを待つ時間。
         // 旧スワイプ注入方式では250ms必要だったが、現在のグローバルアクション/
