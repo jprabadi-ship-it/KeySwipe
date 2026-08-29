@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- 広い画面(600dp以上): ショートカット一覧とスクロール設定を左右2カラムに並べる -->
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
@@ -14,8 +15,8 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:padding="20dp"
-            app:layout_constraintWidth_max="720dp"
+            android:padding="24dp"
+            app:layout_constraintWidth_max="1120dp"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintTop_toTopOf="parent">
@@ -26,17 +27,27 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="12dp" />
 
-            <include
-                layout="@layout/card_shortcuts"
+            <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="20dp" />
+                android:layout_marginTop="24dp"
+                android:orientation="horizontal"
+                android:baselineAligned="false">
 
-            <include
-                layout="@layout/card_scroll"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="16dp" />
+                <include
+                    layout="@layout/card_shortcuts"
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="8dp" />
+
+                <include
+                    layout="@layout/card_scroll"
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp" />
+            </LinearLayout>
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/open_settings_button"

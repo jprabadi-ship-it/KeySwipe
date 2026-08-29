@@ -4,6 +4,8 @@
     <string name="service_description">物理キーボードの Ctrl+矢印キーで、アプリの切り替え（Ctrl+←/→）、最近使ったアプリ一覧（Ctrl+↑）、アプリドロワー（Ctrl+↓）を操作します。また Option(Alt)+トラックボール/マウス移動で画面をスクロールします。キーイベント・マウス移動の監視とジェスチャー実行のために、ユーザー補助の権限を使用します。</string>
     <string name="main_title">KeySwipe — Ctrl+矢印でアプリ操作</string>
     <string name="master_switch">KeySwipe を有効にする</string>
+    <string name="master_switch_short">有効</string>
+    <string name="app_description">物理キーボードとトラックボールで Pixel を操作するユーザー補助ユーティリティです。アプリの切り替え、アプリ一覧からの選択、画面スクロールをキー操作だけで行えます。右上のスイッチを OFF にすると、すべてのキー入力を横取りせずそのままアプリに届けます。</string>
     <string name="master_switch_hint">OFF にするとすべてのキー入力を横取りせず、そのままアプリに届けます（ユーザー補助サービスは有効のまま。ワンタップで再開できます）。</string>
     <string name="key_ctrl_up">Ctrl + ↑</string>
     <string name="key_ctrl_lr">↑ ↓ ← →</string>
@@ -11,12 +13,12 @@
     <string name="desc_qs">隣のアプリへ切り替え（下のバーを横スワイプ）</string>
     <string name="key_enter">Enter</string>
     <string name="key_ctrl_down">Ctrl + ↓</string>
-    <string name="key_ctrl_ball">Ctrl + ボール</string>
+    <string name="key_ctrl_ball">Opt + ボール</string>
     <string name="desc_ctrl_up">アプリ一覧を開く（選択モード開始）</string>
     <string name="desc_ctrl_lr">一覧で選択枠を上下左右に移動（Ctrl不要・左右の端では自動ページ送り）</string>
     <string name="desc_enter">選択中のアプリへ遷移</string>
     <string name="desc_ctrl_down">アプリドロワー（全アプリ一覧）を表示</string>
-    <string name="desc_ctrl_ball">画面をスクロール（押下中はカーソル非表示）</string>
+    <string name="desc_ctrl_ball">画面をスクロール（修飾キーはスクロール設定で変更可）</string>
     <string name="shortcuts_note">一覧が開いていないときの Ctrl+←/→ や、Ctrl なしのキーはすべて通常どおりアプリに届きます。</string>
     <string name="status_enabled">サービス: 有効</string>
     <string name="status_disabled">サービス: 無効 — 下のボタンから有効にしてください</string>
@@ -26,9 +28,9 @@
     <string name="scroll_modifier_short">スクロールに使う修飾キー</string>
     <string name="main_body">使い方:\n\n1. 下のボタンから「ユーザー補助」設定を開き、KeySwipe を有効にしてください。\n2. システムのナビゲーションが「ジェスチャー ナビゲーション」になっていることを確認してください（Ctrl+←/→ は3ボタンでは動作しません）。\n3. 物理キーボードで以下の操作ができます:\n\n・Ctrl+← : 前のアプリ（左側）へ切り替え\n・Ctrl+→ : 次のアプリ（右側）へ切り替え\n・Ctrl+↑ : 最近使ったアプリ一覧を表示\n・Ctrl+↓ : アプリドロワー（全アプリ一覧）を表示\n\n画面回転・折りたたみ状態は自動で追従します。</string>
     <string name="updown_switch">Ctrl+↑/↓（アプリ一覧）を有効にする</string>
-    <string name="updown_switch_hint">OFF にすると Ctrl+↑/↓ は横取りせず、通常のキー操作としてアプリに届きます。Ctrl+←/→ には影響しません。</string>
+    <string name="updown_switch_hint">OFF にすると Ctrl+↑/↓ を横取りせず、通常のキー操作としてアプリに届けます。</string>
     <string name="scroll_section">Option(Alt)+トラックボールでスクロール</string>
-    <string name="scroll_section_hint">Option(Alt) キーを押しながらトラックボール/マウスを動かすと、カーソル位置の画面をスクロールします。Alt を押している間はカーソルは移動せず、スクロール専用モードになります（Android 14 以上）。</string>
+    <string name="scroll_section_hint">修飾キーを押しながらトラックボール/マウスを動かすと画面をスクロールします（押下中はカーソル非表示のスクロール専用モード）。</string>
     <string name="scroll_modifier_label">スクロールに使う修飾キー（キーボードによっては物理の Option が Ctrl として届きます）</string>
     <string name="mod_alt">Option (Alt)</string>
     <string name="mod_ctrl">Ctrl</string>
