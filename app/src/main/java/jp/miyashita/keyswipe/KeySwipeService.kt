@@ -721,8 +721,8 @@ class KeySwipeService : AccessibilityService() {
         attempts: Int = 4,
         allowPage: Boolean = true,
     ) {
-        // ドロワーで地図が古くなっていたら（手でスクロールされた等）操作前に更新
-        if (selectionIsDrawer && overviewCards.isNotEmpty() &&
+        // 地図が古くなっていたら（手でスクロールされた等）操作前に更新
+        if (overviewCards.isNotEmpty() &&
             android.os.SystemClock.uptimeMillis() - lastCardScanAt > 3000L
         ) {
             rescanKeepingSelection()
@@ -987,6 +987,10 @@ class KeySwipeService : AccessibilityService() {
         showHighlight(overviewCards[overviewIndex].bounds)
         startHighlightTracking()
         Log.d(TAG, "overview reselect -> $overviewIndex / ${overviewCards.size} (prevIdx=$prevIdx)")
+        // ページ送りアニメーション終了後の正確な座標で地図と枠を補正する
+        mainHandler.postDelayed({
+            if (overviewMode && !selectionIsDrawer) rescanKeepingSelection()
+        }, 350L)
     }
 
     /**
@@ -1045,22 +1049,40 @@ class KeySwipeService : AccessibilityService() {
                     .thenBy { it.bounds.centerX() }
             )
         } else {
-            // Overview: 画面の18%超の大きなタスクカード
-            val minW = g[0] * 0.18f
-            val minH = g[1] * 0.18f
+            // Overview: タスクカードをID指定で取得（ドロワーと同じ方針。
+            // サイズ推測より正確で、画面端の見切れカードも拾える）
             val found = mutableListOf<OverviewCard>()
-            fun visit(node: AccessibilityNodeInfo?) {
-                node ?: return
-                val b = Rect()
-                node.getBoundsInScreen(b)
-                if (node.isClickable && node.isVisibleToUser &&
-                    b.width() >= minW && b.height() >= minH
-                ) {
-                    found += OverviewCard(node, b)
+            for (root in roots) {
+                val nodes = root.findAccessibilityNodeInfosByViewId(
+                    "$LAUNCHER_PACKAGE:id/task_view_single"
+                ) ?: continue
+                for (n in nodes) {
+                    if (!n.isVisibleToUser) continue
+                    val b = Rect()
+                    n.getBoundsInScreen(b)
+                    if (b.width() >= 100 && b.height() >= 100) {
+                        found += OverviewCard(n, b)
+                    }
                 }
-                for (i in 0 until node.childCount) visit(node.getChild(i))
+                if (found.isNotEmpty()) break
             }
-            roots.forEach { visit(it) }
+            // IDが見つからないランチャー向けフォールバック: 従来のサイズ判定
+            if (found.isEmpty()) {
+                val minW = g[0] * 0.18f
+                val minH = g[1] * 0.18f
+                fun visit(node: AccessibilityNodeInfo?) {
+                    node ?: return
+                    val b = Rect()
+                    node.getBoundsInScreen(b)
+                    if (node.isClickable && node.isVisibleToUser &&
+                        b.width() >= minW && b.height() >= minH
+                    ) {
+                        found += OverviewCard(node, b)
+                    }
+                    for (i in 0 until node.childCount) visit(node.getChild(i))
+                }
+                roots.forEach { visit(it) }
+            }
             // 入れ子のクリック要素は大きい方（カード本体）だけ残す
             val cards = found.filter { c ->
                 found.none { o -> o !== c && o.bounds.contains(c.bounds) }
