@@ -39,6 +39,14 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        // 【実験】開く角度に合わせて外側画面を霞ませる
+        findViewById<MaterialSwitch>(R.id.fold_veil_switch).apply {
+            isChecked = Prefs.isFoldVeilEnabled(this@MainActivity)
+            setOnCheckedChangeListener { _, checked ->
+                Prefs.setFoldVeilEnabled(this@MainActivity, checked)
+            }
+        }
+
         // スクロールの修飾キー
         val modGroup = findViewById<MaterialButtonToggleGroup>(R.id.mod_group)
         val modButtonId = when (Prefs.getScrollModifier(this)) {

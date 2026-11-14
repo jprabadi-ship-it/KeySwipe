@@ -76,4 +76,22 @@ object Prefs {
     fun setScrollInverted(context: Context, inverted: Boolean) {
         prefs(context).edit().putBoolean(KEY_SCROLL_INVERT, inverted).apply()
     }
+
+    // 【実験】開く角度に合わせて外側画面をすりガラス状に霞ませる（既定OFF）
+    private const val KEY_FOLD_VEIL = "fold_veil_enabled"
+
+    fun isFoldVeilEnabled(context: Context): Boolean =
+        prefs(context).getBoolean(KEY_FOLD_VEIL, false)
+
+    fun setFoldVeilEnabled(context: Context, enabled: Boolean) {
+        prefs(context).edit().putBoolean(KEY_FOLD_VEIL, enabled).apply()
+    }
+
+    fun registerListener(
+        context: Context, listener: SharedPreferences.OnSharedPreferenceChangeListener
+    ) = prefs(context).registerOnSharedPreferenceChangeListener(listener)
+
+    fun unregisterListener(
+        context: Context, listener: SharedPreferences.OnSharedPreferenceChangeListener
+    ) = prefs(context).unregisterOnSharedPreferenceChangeListener(listener)
 }

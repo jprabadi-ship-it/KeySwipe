@@ -192,7 +192,17 @@ class KeySwipeService : AccessibilityService() {
         Log.d(TAG, "exitScrollMode: overlay removed")
     }
 
+    // 【実験】開く角度に合わせて外側画面を霞ませる
+    private var foldVeil: FoldVeil? = null
+
+    override fun onServiceConnected() {
+        super.onServiceConnected()
+        foldVeil = FoldVeil(this).also { it.start() }
+    }
+
     override fun onDestroy() {
+        foldVeil?.stop()
+        foldVeil = null
         exitScrollMode()
         hideHighlight()
         super.onDestroy()
