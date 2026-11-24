@@ -1,94 +1,247 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
   <defs>
-    <!-- Background Gradient -->
-    <linearGradient id="bg-grad-1" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#0B1120" />
-      <stop offset="100%" stop-color="#1E293B" />
+    <!-- ===== Background ===== -->
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0"    stop-color="#0B1120"/>
+      <stop offset="0.52" stop-color="#132337"/>
+      <stop offset="1"    stop-color="#1E293B"/>
     </linearGradient>
 
-    <!-- Keycap Bevel -->
-    <linearGradient id="key-bevel-1" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#334155" />
-      <stop offset="100%" stop-color="#0F172A" />
+    <!-- wide neon bloom spilling from behind the key -->
+    <radialGradient id="bloom" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0"    stop-color="#4FACFE" stop-opacity="0.60"/>
+      <stop offset="0.38" stop-color="#00C6FF" stop-opacity="0.27"/>
+      <stop offset="0.70" stop-color="#00C6FF" stop-opacity="0.10"/>
+      <stop offset="1"    stop-color="#00C6FF" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- ===== Glass ===== -->
+    <linearGradient id="glassFace" x1="0.08" y1="0" x2="0.92" y2="1">
+      <stop offset="0"    stop-color="#FFFFFF" stop-opacity="0.34"/>
+      <stop offset="0.40" stop-color="#DCF4FF" stop-opacity="0.16"/>
+      <stop offset="0.76" stop-color="#9FD8FF" stop-opacity="0.11"/>
+      <stop offset="1"    stop-color="#6FC4F5" stop-opacity="0.15"/>
     </linearGradient>
 
-    <!-- Keycap Surface -->
-    <linearGradient id="key-surface-1" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#1E293B" />
-      <stop offset="100%" stop-color="#0F172A" />
+    <linearGradient id="glassBase" x1="0" y1="0" x2="0.3" y2="1">
+      <stop offset="0"    stop-color="#FFFFFF" stop-opacity="0.20"/>
+      <stop offset="0.45" stop-color="#6FA8D8" stop-opacity="0.14"/>
+      <stop offset="1"    stop-color="#0C1A30" stop-opacity="0.34"/>
     </linearGradient>
 
-    <!-- Swipe Glow Gradient -->
-    <linearGradient id="swipe-cyan-1" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="#00F2FE" />
-      <stop offset="50%" stop-color="#4FACFE" />
-      <stop offset="100%" stop-color="#00C6FF" />
+    <!-- rim light around the glass edge -->
+    <linearGradient id="rim" x1="0.05" y1="0" x2="0.7" y2="1">
+      <stop offset="0"    stop-color="#FFFFFF" stop-opacity="1"/>
+      <stop offset="0.24" stop-color="#C6F3FF" stop-opacity="0.82"/>
+      <stop offset="0.55" stop-color="#5CC8FE" stop-opacity="0.52"/>
+      <stop offset="0.80" stop-color="#9FE4FF" stop-opacity="0.64"/>
+      <stop offset="1"    stop-color="#FFFFFF" stop-opacity="0.92"/>
     </linearGradient>
 
-    <!-- Trail Gradient -->
-    <linearGradient id="trail-grad-1" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="#00F2FE" stop-opacity="0" />
-      <stop offset="70%" stop-color="#4FACFE" stop-opacity="0.4" />
-      <stop offset="100%" stop-color="#00C6FF" stop-opacity="0.9" />
+    <linearGradient id="rimBase" x1="0" y1="0" x2="0.2" y2="1">
+      <stop offset="0"    stop-color="#DDF7FF" stop-opacity="0.74"/>
+      <stop offset="0.5"  stop-color="#4FACFE" stop-opacity="0.36"/>
+      <stop offset="1"    stop-color="#9FE4FF" stop-opacity="0.64"/>
     </linearGradient>
 
-    <!-- Glow Effect -->
-    <filter id="glow-1" x="-30%" y="-30%" width="160%" height="160%">
-      <feGaussianBlur stdDeviation="10" result="blur" />
-      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    <!-- diagonal sheen band on the glass surface -->
+    <linearGradient id="sheen" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0"    stop-color="#FFFFFF" stop-opacity="0"/>
+      <stop offset="0.42" stop-color="#FFFFFF" stop-opacity="0.30"/>
+      <stop offset="0.60" stop-color="#FFFFFF" stop-opacity="0.30"/>
+      <stop offset="1"    stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+
+    <!-- ===== Motion / neon ===== -->
+    <!-- NOTE: these MUST be userSpaceOnUse. librsvg refuses to paint an
+         objectBoundingBox gradient on a perfectly horizontal path (zero-height
+         bbox), which silently erases every trail and the arrow shaft. -->
+    <linearGradient id="trailWide" gradientUnits="userSpaceOnUse" x1="-10" y1="0" x2="524" y2="0">
+      <stop offset="0"    stop-color="#00F2FE" stop-opacity="0"/>
+      <stop offset="0.18" stop-color="#00F2FE" stop-opacity="0.70"/>
+      <stop offset="0.5"  stop-color="#9FEBFF" stop-opacity="1"/>
+      <stop offset="0.82" stop-color="#00C6FF" stop-opacity="0.70"/>
+      <stop offset="1"    stop-color="#00C6FF" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="trailMid" gradientUnits="userSpaceOnUse" x1="140" y1="0" x2="372" y2="0">
+      <stop offset="0"    stop-color="#00F2FE" stop-opacity="0"/>
+      <stop offset="0.22" stop-color="#00F2FE" stop-opacity="0.80"/>
+      <stop offset="0.5"  stop-color="#BFF2FF" stop-opacity="1"/>
+      <stop offset="0.78" stop-color="#00C6FF" stop-opacity="0.80"/>
+      <stop offset="1"    stop-color="#00C6FF" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="trailShort" gradientUnits="userSpaceOnUse" x1="186" y1="0" x2="326" y2="0">
+      <stop offset="0"    stop-color="#00F2FE" stop-opacity="0"/>
+      <stop offset="0.5"  stop-color="#A9ECFF" stop-opacity="1"/>
+      <stop offset="1"    stop-color="#00C6FF" stop-opacity="0"/>
+    </linearGradient>
+
+    <linearGradient id="neon" gradientUnits="userSpaceOnUse" x1="150" y1="0" x2="362" y2="0">
+      <stop offset="0"    stop-color="#00F2FE"/>
+      <stop offset="0.5"  stop-color="#4FACFE"/>
+      <stop offset="1"    stop-color="#00C6FF"/>
+    </linearGradient>
+
+    <!-- ===== Filters (librsvg-safe: single feGaussianBlur / feDropShadow) ===== -->
+    <filter id="b6"  x="-80%"  y="-80%"  width="260%" height="260%"><feGaussianBlur stdDeviation="6"/></filter>
+    <filter id="b10" x="-90%"  y="-90%"  width="280%" height="280%"><feGaussianBlur stdDeviation="10"/></filter>
+    <filter id="b14" x="-90%"  y="-90%"  width="280%" height="280%"><feGaussianBlur stdDeviation="14"/></filter>
+    <filter id="b30" x="-120%" y="-120%" width="340%" height="340%"><feGaussianBlur stdDeviation="30"/></filter>
+    <filter id="b48" x="-150%" y="-150%" width="400%" height="400%"><feGaussianBlur stdDeviation="48"/></filter>
+    <!-- userSpaceOnUse filters: an objectBoundingBox filter region collapses to
+         zero on a horizontal path, so anything flat must use these instead. -->
+    <filter id="hb6"  filterUnits="userSpaceOnUse" x="-60" y="-60" width="632" height="632"><feGaussianBlur stdDeviation="6"/></filter>
+    <filter id="hb12" filterUnits="userSpaceOnUse" x="-60" y="-60" width="632" height="632"><feGaussianBlur stdDeviation="12"/></filter>
+    <filter id="hb22" filterUnits="userSpaceOnUse" x="-60" y="-60" width="632" height="632"><feGaussianBlur stdDeviation="22"/></filter>
+    <filter id="drop" x="-60%"  y="-60%"  width="220%" height="220%">
+      <feDropShadow dx="0" dy="22" stdDeviation="20" flood-color="#01050F" flood-opacity="0.50"/>
     </filter>
 
-    <filter id="soft-shadow-1" x="-20%" y="-20%" width="140%" height="140%">
-      <feDropShadow dx="0" dy="18" stdDeviation="22" flood-color="#000000" flood-opacity="0.6" />
-    </filter>
+    <clipPath id="faceClip">
+      <rect x="143" y="156" width="226" height="174" rx="42"/>
+    </clipPath>
+    <clipPath id="frameClip">
+      <rect x="0" y="0" width="512" height="512" rx="112"/>
+    </clipPath>
+
+    <!-- the swipe arrow, reused by the backlight and the tube layers -->
+    <g id="arrow">
+      <path d="M164 251H348"/>
+      <path d="M214 206L164 251L214 296"/>
+      <path d="M298 206L348 251L298 296"/>
+    </g>
   </defs>
 
-  <!-- Background Base -->
-  <rect width="512" height="512" rx="112" fill="url(#bg-grad-1)" />
+  <g clip-path="url(#frameClip)">
+    <!-- ============ 1. background plate ============ -->
+    <rect width="512" height="512" fill="url(#bg)"/>
 
-  <!-- Pixel Grid Tech Lines -->
-  <g opacity="0.07" stroke="#38BDF8" stroke-width="1.5">
-    <line x1="128" y1="0" x2="128" y2="512" />
-    <line x1="256" y1="0" x2="256" y2="512" />
-    <line x1="384" y1="0" x2="384" y2="512" />
-    <line x1="0" y1="128" x2="512" y2="128" />
-    <line x1="0" y1="256" x2="512" y2="256" />
-    <line x1="0" y1="384" x2="512" y2="384" />
+    <!-- faint tech grid -->
+    <g opacity="0.06" stroke="#38BDF8" stroke-width="1.6">
+      <path d="M64 0V512M128 0V512M192 0V512M256 0V512M320 0V512M384 0V512M448 0V512"/>
+      <path d="M0 64H512M0 128H512M0 192H512M0 256H512M0 320H512M0 384H512M0 448H512"/>
+    </g>
+
+    <!-- dashed orbit rings (decoration, outside the safe radius) -->
+    <circle cx="256" cy="256" r="202" fill="none" stroke="#7DD3FC" stroke-opacity="0.18"
+            stroke-width="2" stroke-dasharray="3 13" stroke-linecap="round"/>
+    <circle cx="256" cy="256" r="228" fill="none" stroke="#38BDF8" stroke-opacity="0.09" stroke-width="1.5"/>
+
+    <!-- ============ 2. the bloom behind everything ============ -->
+    <ellipse cx="256" cy="250" rx="252" ry="238" fill="url(#bloom)"/>
+
+    <!-- ============ 3. horizontal swipe trails ============ -->
+    <!-- 3a. soft light spill streaking across, behind the keycap -->
+    <g stroke-linecap="round" filter="url(#hb22)">
+      <path d="M-10 212H472" stroke="url(#trailWide)" stroke-width="14" opacity="0.46"/>
+      <path d="M4 251H524"   stroke="url(#trailWide)" stroke-width="26" opacity="0.75"/>
+      <path d="M-10 290H472" stroke="url(#trailWide)" stroke-width="14" opacity="0.46"/>
+    </g>
+    <!-- 3b. thin crisp cores that give the spill a direction -->
+    <g stroke-linecap="round" filter="url(#hb6)">
+      <path d="M30 214H470"  stroke="url(#trailWide)" stroke-width="3.5" opacity="0.42"/>
+      <path d="M10 251H502"  stroke="url(#trailWide)" stroke-width="6"   opacity="0.72"/>
+      <path d="M42 288H482"  stroke="url(#trailWide)" stroke-width="3.5" opacity="0.42"/>
+    </g>
+    <!-- 3c. streaks above and below the key. They sit inside the circular crop,
+             so the icon keeps its density when a launcher masks it to a circle. -->
+    <g stroke-linecap="round" filter="url(#hb12)">
+      <path d="M148 124H364" stroke="url(#trailMid)" stroke-width="9" opacity="0.52"/>
+      <path d="M150 390H362" stroke="url(#trailMid)" stroke-width="9" opacity="0.56"/>
+    </g>
+    <g stroke-linecap="round" filter="url(#hb6)">
+      <path d="M172 124H340" stroke="url(#trailMid)"   stroke-width="2.6" opacity="0.60"/>
+      <path d="M174 390H338" stroke="url(#trailMid)"   stroke-width="2.4" opacity="0.58"/>
+      <path d="M196 100H316" stroke="url(#trailShort)" stroke-width="2"   opacity="0.34"/>
+      <path d="M196 414H316" stroke="url(#trailShort)" stroke-width="2"   opacity="0.30"/>
+    </g>
+    <!-- travelling sparks along the trails -->
+    <g fill="#E8FBFF">
+      <circle cx="104" cy="251" r="5.5" opacity="0.85"/>
+      <circle cx="408" cy="251" r="5.5" opacity="0.85"/>
+      <circle cx="168" cy="124" r="3.6" opacity="0.70"/>
+      <circle cx="344" cy="124" r="2.6" opacity="0.42"/>
+      <circle cx="172" cy="390" r="2.6" opacity="0.42"/>
+      <circle cx="340" cy="390" r="3.4" opacity="0.62"/>
+      <circle cx="112" cy="212" r="3.2" opacity="0.46"/>
+      <circle cx="400" cy="290" r="3.2" opacity="0.46"/>
+    </g>
+
+    <!-- ============ 4. cast shadow of the keycap ============ -->
+    <rect x="140" y="214" width="232" height="176" rx="50" fill="#01050F" opacity="0.46" filter="url(#b30)"/>
+
+    <!-- ============ 5. neon light SOURCE sitting behind the glass ============ -->
+    <ellipse cx="256" cy="251" rx="206" ry="60" fill="#1FA8F0" opacity="0.42" filter="url(#b48)"/>
+    <rect x="172" y="200" width="168" height="112" rx="50" fill="#00C6FF" opacity="0.62" filter="url(#b48)"/>
+    <g filter="url(#b30)" opacity="0.95" fill="none" stroke="url(#neon)"
+       stroke-width="30" stroke-linecap="round" stroke-linejoin="round">
+      <use href="#arrow"/>
+    </g>
+
+    <!-- ============ 6. frosted keycap ============ -->
+    <!-- outer edge glow so the silhouette survives at 48px -->
+    <rect x="132" y="170" width="248" height="194" rx="50" fill="none"
+          stroke="#8FE3FF" stroke-opacity="0.58" stroke-width="7" filter="url(#b14)"/>
+    <g filter="url(#drop)">
+      <!-- lower body / side wall -->
+      <rect x="132" y="170" width="248" height="194" rx="50"
+            fill="url(#glassBase)" stroke="url(#rimBase)" stroke-width="3"/>
+    </g>
+    <!-- top frosted face -->
+    <rect x="143" y="156" width="226" height="174" rx="42"
+          fill="url(#glassFace)" stroke="url(#rim)" stroke-width="3.5"/>
+
+    <!-- diagonal highlight bands on the glass -->
+    <g clip-path="url(#faceClip)">
+      <polygon points="126,352 240,138 304,138 190,352" fill="url(#sheen)" opacity="0.8"/>
+      <polygon points="238,352 310,138 328,138 256,352" fill="url(#sheen)" opacity="0.55"/>
+    </g>
+
+    <!-- ============ 7. the trails showing THROUGH the frosted glass ============ -->
+    <g clip-path="url(#faceClip)" stroke-linecap="round" filter="url(#hb12)">
+      <path d="M120 212H392" stroke="#9FE9FF" stroke-opacity="0.30" stroke-width="11"/>
+      <path d="M120 290H392" stroke="#9FE9FF" stroke-opacity="0.30" stroke-width="11"/>
+      <path d="M120 178H392" stroke="#A9ECFF" stroke-opacity="0.20" stroke-width="6"/>
+      <path d="M120 322H392" stroke="#A9ECFF" stroke-opacity="0.20" stroke-width="6"/>
+    </g>
+
+    <!-- top edge specular + bottom bounce light -->
+    <path d="M180 164Q256 154 332 164" fill="none" stroke="#FFFFFF" stroke-opacity="0.74"
+          stroke-width="4" stroke-linecap="round"/>
+    <path d="M190 358Q256 366 322 358" fill="none" stroke="#BFF2FF" stroke-opacity="0.62"
+          stroke-width="4" stroke-linecap="round"/>
+
+    <!-- ============ 8. Ctrl + up hint, etched into the glass (fades out at 48px) ============ -->
+    <path d="M234 194L256 176L278 194" fill="none" stroke="#D4F6FF" stroke-opacity="0.50"
+          stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"/>
+
+    <!-- ============ 9. neon tube swipe arrow (cyan tube + white hot core) ============ -->
+    <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <!-- outer halo: narrower than the tube so it never fills the arrowhead notch -->
+      <g filter="url(#b10)" opacity="0.8" stroke="url(#neon)" stroke-width="26">
+        <use href="#arrow"/>
+      </g>
+      <!-- tube wall -->
+      <g stroke="url(#neon)" stroke-width="24">
+        <use href="#arrow"/>
+      </g>
+      <!-- white hot core -->
+      <g stroke="#F4FDFF" stroke-width="9" opacity="0.97">
+        <path d="M170 251H342"/>
+        <path d="M214 209L170 251L214 293"/>
+        <path d="M298 209L342 251L298 293"/>
+      </g>
+    </g>
+
+    <!-- ============ 10. glass front reflection over the neon ============ -->
+    <g clip-path="url(#faceClip)" opacity="0.42">
+      <polygon points="126,352 240,138 304,138 190,352" fill="url(#sheen)"/>
+    </g>
+
+    <!-- inner frame to re-assert the key silhouette on top of the glow -->
+    <rect x="143" y="156" width="226" height="174" rx="42" fill="none"
+          stroke="url(#rim)" stroke-width="3.5" opacity="0.95"/>
+    <rect x="155" y="168" width="202" height="150" rx="34" fill="none"
+          stroke="#FFFFFF" stroke-opacity="0.12" stroke-width="1.5"/>
   </g>
-
-  <!-- 3D Keycap Object -->
-  <g filter="url(#soft-shadow-1)">
-    <!-- Base Body (Bevel) -->
-    <rect x="116" y="140" width="280" height="240" rx="44" fill="url(#key-bevel-1)" />
-    
-    <!-- Top Concave Face -->
-    <rect x="138" y="132" width="236" height="206" rx="36" fill="url(#key-surface-1)" stroke="#475569" stroke-width="2" stroke-opacity="0.7" />
-
-    <!-- Surface Top Edge Highlight -->
-    <path d="M 166 142 Q 256 135 346 142" stroke="#FFFFFF" stroke-opacity="0.25" stroke-width="3" stroke-linecap="round" fill="none" />
-  </g>
-
-  <!-- Key Modifier Label "CTRL" -->
-  <text x="160" y="182" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif" font-size="20" font-weight="800" fill="#64748B" letter-spacing="2">CTRL</text>
-
-  <!-- Motion Swipe Waves -->
-  <g opacity="0.85">
-    <path d="M 80 236 L 220 236" stroke="url(#trail-grad-1)" stroke-width="7" stroke-linecap="round" />
-    <path d="M 50 256 L 260 256" stroke="url(#trail-grad-1)" stroke-width="12" stroke-linecap="round" />
-    <path d="M 90 276 L 210 276" stroke="url(#trail-grad-1)" stroke-width="7" stroke-linecap="round" />
-  </g>
-
-  <!-- Dynamic Glowing Swipe Arrow -->
-  <g filter="url(#glow-1)">
-    <!-- Arrow Stem & Head -->
-    <path d="M 180 256 L 330 256" stroke="url(#swipe-cyan-1)" stroke-width="24" stroke-linecap="round" />
-    <path d="M 285 210 L 345 256 L 285 302" stroke="url(#swipe-cyan-1)" stroke-width="24" stroke-linecap="round" stroke-linejoin="round" fill="none" />
-
-    <!-- Upward Swipe Indicator (Ctrl+Up) -->
-    <path d="M 256 200 L 256 166 M 242 178 L 256 164 L 270 178" stroke="#38BDF8" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" fill="none" opacity="0.8" />
-  </g>
-
-  <!-- Energy Pulse Dots -->
-  <circle cx="345" cy="256" r="6" fill="#FFFFFF" />
-  <circle cx="345" cy="256" r="16" fill="#00F2FE" opacity="0.4" />
 </svg>

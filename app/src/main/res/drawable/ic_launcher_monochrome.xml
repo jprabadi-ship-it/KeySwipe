@@ -1,40 +1,43 @@
 <!-- テーマアイコン(Android 13+)用のモノクロ版。
-     システムが単色で塗るため、キーキャップの輪郭と矢印だけのシルエットにする。
-     前景PNGと同じく中心基準で0.9倍し、セーフゾーンに収める。 -->
+     システムが単色で塗るため、ガラスキーキャップの輪郭と
+     双方向のスワイプ矢印だけのシルエットにする。
+     座標は artwork/icon.svg（glassneon）の天面・矢印に合わせてある。 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="512"
     android:viewportHeight="512">
 
-    <group
-        android:pivotX="256"
-        android:pivotY="256"
-        android:scaleX="0.9"
-        android:scaleY="0.9">
+    <!-- キーキャップの輪郭（天面 x143..369 / y156..330 / rx42） -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#000000"
+        android:strokeWidth="20"
+        android:pathData="M185,156 L327,156 A42,42 0 0 1 369,198 L369,288 A42,42 0 0 1 327,330 L185,330 A42,42 0 0 1 143,288 L143,198 A42,42 0 0 1 185,156 Z" />
 
-        <!-- キーキャップの輪郭 -->
-        <path
-            android:fillColor="#00000000"
-            android:strokeColor="#000000"
-            android:strokeWidth="20"
-            android:pathData="M160,140 L352,140 A44,44 0 0 1 396,184 L396,336 A44,44 0 0 1 352,380 L160,380 A44,44 0 0 1 116,336 L116,184 A44,44 0 0 1 160,140 Z" />
+    <!-- 双方向スワイプ矢印（軸） -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#000000"
+        android:strokeWidth="26"
+        android:strokeLineCap="round"
+        android:pathData="M172,243 L340,243" />
 
-        <!-- スワイプ矢印（軸） -->
-        <path
-            android:fillColor="#00000000"
-            android:strokeColor="#000000"
-            android:strokeWidth="26"
-            android:strokeLineCap="round"
-            android:pathData="M180,256 L322,256" />
+    <!-- 左の鏃 -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#000000"
+        android:strokeWidth="26"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M214,201 L172,243 L214,285" />
 
-        <!-- スワイプ矢印（先端） -->
-        <path
-            android:fillColor="#00000000"
-            android:strokeColor="#000000"
-            android:strokeWidth="26"
-            android:strokeLineCap="round"
-            android:strokeLineJoin="round"
-            android:pathData="M285,210 L340,256 L285,302" />
-    </group>
+    <!-- 右の鏃 -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#000000"
+        android:strokeWidth="26"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M298,201 L340,243 L298,285" />
 </vector>
